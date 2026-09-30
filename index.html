@@ -1,0 +1,2095 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Cache-Control" content="no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<title>Query-Level Optimization</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&family=Patrick+Hand&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  /* Type is a share of SCREEN HEIGHT so the deck keeps its physical size on any
+     projector resolution. --scale is the presenter's live zoom (+ / - / 0).   */
+  --scale:1;
+
+  /* Sketchnote palette: cream paper, ink, highlighter, pencil-blue */
+  --paper:#FBF3E4;
+  --paper-2:#F5EAD6;
+  --card:#FFFFFF;
+  --ink:#1C1A17;
+  --ink-2:#403B34;
+  --muted:#6B6259;
+  --line:#D8CCB4;
+
+  --amber:#FFD766;          /* highlighter */
+  --amber-2:#F7C948;
+  --amber-soft:#FDEFC2;
+  --pencil:#7FA3C9;         /* the blue-grey sketch fill */
+  --pencil-2:#3D5C7E;
+  --pencil-soft:#DCE8F4;
+  --flame:#E8553A;          /* warnings, hot shards — a FILL colour */
+  --flame-ink:#BF3419;      /* the same voice, dark enough to set as text */
+  --flame-soft:#FBE2DC;
+  --on-flame:#2A1109;     /* text that sits ON a flame fill, in either theme */
+  --surface-blue:#3D5C7E;   /* coloured bands that keep white text in BOTH themes */
+  --surface-green:#3A7A3D;
+  --leaf:#3A7A3D;           /* good, benefits */
+  --leaf-soft:#E2F0E2;
+
+  --bg:var(--paper);
+  --bg-2:var(--paper-2);
+  --panel:var(--card);
+  --panel-2:var(--paper-2);
+
+  /* names the rest of the stylesheet and the scene code already speak */
+  --squid:var(--ink);
+  --squid-2:var(--pencil-2);
+  --squid-deep:#12100E;
+  --orange:var(--amber);
+  --orange-deep:#6E4A05;
+  --orange-soft:var(--amber-soft);
+  --link:var(--pencil-2);
+  --link-soft:var(--pencil-soft);
+  --red:var(--flame);
+  --red-soft:var(--flame-soft);
+  --green:var(--leaf);
+  --green-soft:var(--leaf-soft);
+  --white:var(--card);
+  --line-2:#E7DEC9;
+  --accent:var(--pencil-2);
+  --accent-deep:var(--ink);
+  --accent-soft:var(--line);
+  --accent-tint:var(--amber-soft);
+  --violet:var(--pencil-2);
+  --violet-soft:var(--pencil-soft);
+  --teal:var(--pencil);
+  --clay:var(--flame);
+  --ok:var(--leaf);
+  --navy-900:var(--ink);
+  --navy-800:var(--ink);
+  --navy-700:var(--ink);
+  --blue:var(--pencil-2);
+  --blue-400:var(--ink);
+  --blue-300:var(--pencil);
+  --cyan:var(--amber);
+  --purple:var(--pencil-2);
+  --purple-300:var(--amber);
+  --gold:var(--amber);
+  --gold-soft:var(--amber-soft);
+
+  --shadow:3px 4px 0 rgba(28,26,23,.13);
+  --shadow-sm:2px 3px 0 rgba(28,26,23,.11);
+
+  /* hand-drawn box: uneven corner radii, the classic sketch trick */
+  --wobble:255px 15px 225px 15px/15px 225px 15px 255px;
+  --wobble-2:15px 225px 15px 255px/225px 15px 255px 15px;
+
+  --hand:'Patrick Hand','Comic Sans MS',cursive;
+  --marker:'Caveat','Patrick Hand',cursive;
+  --arial:var(--hand);
+  --serif:var(--marker);
+  --news:var(--hand);
+  --sans:var(--hand);
+  --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+:root[data-theme="dark"]{
+  /* accents re-lit for a dark ground — the light-theme values are far too dark here */
+  --amber:#6B5416;
+  --amber-2:#7A5D14;
+  --pencil-2:#B8D4F0;
+  --flame-ink:#FF8A6E;
+  --leaf:#6FBF73;
+  --orange-deep:#F2D07A;
+  --paper:#241F1A;
+  --paper-2:#2C261F;
+  --card:#2B251E;
+  --ink:#F6EEDF;
+  --ink-2:#DACFBC;
+  --muted:#9E9382;
+  --line:#4A4136;
+  --line-2:#3C342B;
+  --amber-soft:#463A1C;
+  --pencil-soft:#26323E;
+  --flame-soft:#3E241E;
+  --leaf-soft:#22331F;
+  --white:var(--card);
+  --squid-deep:#0E0C0A;
+  --shadow:3px 4px 0 rgba(0,0,0,.45);
+  --shadow-sm:2px 3px 0 rgba(0,0,0,.4);
+}
+*{box-sizing:border-box}
+html,body{height:100%;overflow:hidden}
+body{height:100dvh}
+html{font-size:clamp(14px, calc(min(3.5vh, 2.08vw) * var(--scale)), 56px)}
+body{
+  margin:0;color:var(--ink);overflow:hidden;
+  background:var(--paper);
+  background-image:
+    radial-gradient(circle at 22% 18%, rgba(255,215,102,.16), transparent 42%),
+    radial-gradient(circle at 82% 78%, rgba(127,163,201,.13), transparent 46%);
+  font-family:var(--sans);overflow:hidden;
+}
+
+/* ================= shell: chapter rail + document =================
+   Flat and rule-based rather than floating cards: square corners, hairline
+   borders, no shadows. The rail carries identity and position so the stage
+   gets the full height of the screen.                                      */
+#app{height:100%;max-width:100%;display:grid;
+  grid-template-columns:clamp(8.2rem,12.5vw,12.5rem) minmax(0,1fr);
+  grid-template-rows:minmax(0,1fr);overflow:hidden}
+
+.rail{background:transparent;color:var(--ink);display:flex;flex-direction:column;
+  padding:.9rem .85rem;gap:.7rem;border-right:3px dashed var(--line);
+  min-width:0;min-height:0;overflow:hidden}
+.rail-lecture{font-family:var(--hand);font-size:.5rem;font-weight:400;letter-spacing:1.4px;
+  text-transform:uppercase;color:var(--orange-deep);padding-bottom:.7rem;
+  border-bottom:2px dashed var(--line)}
+.rail-lecture b{display:block;margin-top:.15rem;font-family:var(--marker);font-weight:700;
+  font-size:1.05rem;letter-spacing:0;text-transform:none;color:var(--ink);line-height:1.05}
+
+/* the chapter list scrolls rather than clipping — at a large type scale, or on a
+   short screen, it can outgrow the margin. `safe center` keeps it centred while it
+   fits but falls back to start when it overflows, so the first item stays reachable. */
+.rail-nav{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;
+  justify-content:safe center;gap:.08rem;overflow-y:auto;overflow-x:hidden;
+  overscroll-behavior:contain;scrollbar-width:none}
+.rail-nav::-webkit-scrollbar{width:0;height:0}
+/* only when it actually scrolls: fade the cut edges so a half-shown chapter
+   reads as "there is more above/below" rather than as a clipping bug */
+.rail-nav.scrolls{-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 14px,
+  #000 calc(100% - 14px),transparent 100%);
+  mask-image:linear-gradient(to bottom,transparent 0,#000 14px,
+  #000 calc(100% - 14px),transparent 100%)}
+.rn{display:grid;grid-template-columns:1.35rem 1fr;gap:.4rem;align-items:baseline;
+  padding:clamp(.16rem,.72vh,.3rem) .25rem;cursor:pointer;border-left:3px solid transparent;
+  color:var(--muted);transition:color .15s,border-color .15s,background .15s}
+.rn:hover{color:var(--ink);background:var(--amber-soft)}
+.rn-n{font-family:var(--mono);font-size:.46rem;font-weight:700;text-align:right;color:var(--orange-deep)}
+.rn-t{font-family:var(--hand);font-size:.62rem;line-height:1.15}
+.rn.done{color:var(--muted);opacity:.7}
+.rn.now{color:var(--ink);border-left-color:transparent;background:var(--amber);
+  border-radius:var(--wobble-2);box-shadow:var(--shadow-sm)}
+.rn.now .rn-n{color:var(--ink)}
+
+.rail-foot{flex:0 0 auto;display:flex;flex-direction:column;gap:.5rem;
+  padding-top:.7rem;border-top:2px dashed var(--line)}
+.present{display:inline-flex;align-items:center;justify-content:center;gap:.4em;cursor:pointer;
+  font-family:var(--hand);font-size:.62rem;letter-spacing:.5px;padding:.34rem .6rem;
+  border:2.5px solid var(--ink);border-radius:var(--wobble);background:var(--amber);
+  color:var(--ink);box-shadow:var(--shadow-sm);transition:transform .12s}
+.present:hover{transform:translate(-1px,-1px) rotate(-.7deg)}
+.present svg{width:1.05em;height:1.05em}
+.rail-meta{display:flex;justify-content:space-between;gap:.4rem;font-family:var(--mono);
+  font-size:.44rem;color:var(--muted)}
+.rail-keys{font-size:.48rem;line-height:1.8;color:var(--muted)}
+kbd{font-family:var(--mono);font-size:.9em;background:var(--amber-soft);
+  border:1.5px solid var(--line);border-radius:4px;padding:1px 4px;color:var(--ink-2)}
+
+.doc{min-width:0;min-height:0;overflow:hidden;display:flex;flex-direction:column;background:transparent}
+.doc-head{flex:0 0 auto;min-width:0;padding:.7rem 1.35rem .55rem;
+  border-bottom:3px solid var(--ink)}
+.eyebrow{font-family:var(--hand);font-size:.6rem;letter-spacing:1.6px;text-transform:uppercase;
+  color:var(--orange-deep);margin-bottom:.1rem}
+.slide-title{display:inline-block;margin:0;font-family:var(--marker);font-weight:700;
+  font-size:2rem;line-height:1;letter-spacing:0;color:var(--ink);
+  background:linear-gradient(var(--amber),var(--amber));
+  background-size:100% .62em;background-position:0 .62em;background-repeat:no-repeat;
+  padding:0 .18em .06em;transform:rotate(-.5deg)}
+:root[data-theme="dark"] .slide-title{color:var(--ink)}
+.kick{margin-top:.12rem;font-family:var(--hand);font-size:.72rem;color:var(--muted)}
+
+main{flex:1 1 auto;min-height:0;min-width:0;padding:.65rem 1.35rem .7rem;display:flex;overflow:hidden}
+.slide{flex:1 1 auto;min-height:0;min-width:0;display:flex;align-items:center;
+  justify-content:center;overflow:hidden}
+.fit{width:100%;height:100%;min-height:0;padding:5px 0;display:flex;flex-direction:column;gap:.38rem;
+  justify-content:center;transform-origin:center top}
+/* measurement pose: centred boxes hide half their overflow from scrollHeight,
+   so everything is top-aligned for the instant we measure */
+.fit.topfit{justify-content:flex-start}
+.fit.measuring,.fit.measuring *{
+  align-items:flex-start!important;align-content:flex-start!important;
+  justify-content:flex-start!important}
+
+/* a credit line, not content: capped so it stays subordinate on a big projector
+   and never steals height from the chapter list */
+.rail-by{flex:0 0 auto;font-family:var(--hand);font-size:clamp(8px,.44rem,12px);
+  letter-spacing:1.2px;text-transform:uppercase;color:var(--muted);
+  padding-top:clamp(4px,.42rem,9px);border-top:1px dashed var(--line);
+  white-space:nowrap;overflow:hidden}
+.rail-by b{font-family:var(--marker);font-weight:700;font-size:clamp(11px,.6rem,15px);
+  letter-spacing:.2px;text-transform:none;color:var(--ink)}
+
+.progress{flex:0 0 auto;height:5px;background:var(--line)}
+.progress span{display:block;height:100%;background:var(--amber-2);transition:width .2s ease}
+
+@media (max-height:820px){ .rail-keys{display:none} }
+@media (max-height:720px){
+  .rail-lecture{padding-bottom:.5rem}
+  .rail-lecture b{font-size:.56rem}
+  .rn{padding:.22rem .25rem}
+  .rail-foot{gap:.35rem;padding-top:.5rem}
+}
+@media (max-height:600px){
+  .rail-lecture b{display:none}
+  .rail-by{font-size:0;padding-top:.32rem}
+  .rail-by b{font-size:.56rem}
+  .rn-t{font-size:.46rem}
+}
+
+@media (max-width:860px){
+  #app{grid-template-columns:1fr;grid-template-rows:auto 1fr}
+  .rail{flex-direction:row;align-items:center;gap:.7rem;border-right:none;
+    border-bottom:3px solid var(--orange);padding:.5rem .8rem}
+  .rail-nav,.rail-keys{display:none}
+  .rail-lecture{padding-bottom:0;border-bottom:none}
+  .rail-foot{flex-direction:row;align-items:center;border-top:none;padding-top:0;margin-left:auto}
+  .rail-by{font-size:0;padding-top:0;border-top:none}
+  .rail-by b{font-size:.56rem}
+  .doc-head{padding:.8rem 1rem .5rem}
+  main{padding:.7rem 1rem}
+}
+
+/* ================= shared blocks ================= */
+.lede{margin:0;font-family:var(--hand);font-size:.94rem;line-height:1.38;color:var(--ink-2);max-width:54rem}
+.lede b{color:var(--ink);font-weight:600}
+.kicker{font-family:var(--news);font-style:italic;font-size:.82rem;color:var(--violet);margin:0}
+.stage-row{flex:1 1 auto;min-height:0;display:flex;align-items:center;justify-content:center}
+svg.scene{width:100%;height:100%;max-height:100%;overflow:visible;fill:var(--ink)}
+svg.scene rect:not(.nofx),svg.scene circle:not(.packet){filter:url(#rough)}
+.cards{display:grid;gap:.5rem}
+/* equal-height cards within a row, without forcing the grid to fill */
+.fit > .cards > .pop{display:flex}
+.fit > .cards > .pop > .card{flex:1 1 auto}
+.card{position:relative;background:var(--card);border:2.5px solid var(--ink);
+  border-radius:var(--wobble);padding:.62rem .9rem;overflow:visible;box-shadow:var(--shadow-sm)}
+.card:nth-of-type(even){border-radius:var(--wobble-2);transform:rotate(.22deg)}
+.card:nth-of-type(odd){transform:rotate(-.18deg)}
+.card::after{content:'';position:absolute;left:.7rem;right:.7rem;top:-2px;height:7px;
+  background:var(--pencil);border-radius:99px;opacity:.85}
+.card.warn::after{background:var(--flame)} .card.good::after{background:var(--leaf)}
+.card.pp::after{background:var(--amber-2)} .card.tl::after{background:var(--pencil-2)}
+.card h4{margin:.1rem 0 .2rem;font-family:var(--hand);font-size:.62rem;letter-spacing:1.3px;
+  text-transform:uppercase;color:var(--orange-deep)}
+.card.warn h4{color:var(--flame-ink)} .card.good h4{color:var(--leaf)}
+.card.pp h4{color:var(--orange-deep)} .card.tl h4{color:var(--pencil-2)}
+.card h3{margin:0 0 .18rem;font-family:var(--marker);font-weight:700;font-size:1.12rem;
+  line-height:1.02;letter-spacing:0;color:var(--ink)}
+.card p{margin:0;font-family:var(--hand);font-size:.76rem;line-height:1.34;color:var(--ink-2)}
+.card:has(.ico) h3,.card:has(.ico) h4{padding-right:2.6rem}
+.card .ico{position:absolute;right:.6rem;top:.55rem;width:1.9rem;height:1.9rem;
+  border-radius:var(--wobble-2);display:grid;place-items:center;background:var(--amber-soft);
+  border:2px solid var(--ink)}
+.card .ico svg{width:1rem;height:1rem;color:var(--ink)}
+.card.warn .ico svg{color:var(--flame)} .card.good .ico svg{color:var(--leaf)}
+.card.pp .ico svg{color:var(--orange-deep)} .card.tl .ico svg{color:var(--pencil-2)}
+code,.mono{font-family:var(--mono);font-size:.84em;background:var(--amber-soft);
+  padding:1px 5px;border-radius:5px;color:var(--ink);border:1.5px solid var(--line)}
+:root[data-theme="dark"] code,:root[data-theme="dark"] .mono{color:var(--orange-deep)}
+
+.pop{opacity:0;transform:translateY(12px);animation:pop .42s cubic-bezier(.22,1,.36,1) forwards}
+@keyframes pop{to{opacity:1;transform:none}}
+.d1{animation-delay:.06s}.d2{animation-delay:.14s}.d3{animation-delay:.22s}
+.d4{animation-delay:.3s}.d5{animation-delay:.38s}.d6{animation-delay:.46s}
+
+/* ================= motion primitives ================= */
+@keyframes drawIn{to{stroke-dashoffset:0}}
+@keyframes fadeIn{to{opacity:1}}
+@keyframes riseIn{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+@keyframes popIn{from{opacity:0;transform:scale(.82)}to{opacity:1;transform:scale(1)}}
+@keyframes glowPulse{0%,100%{filter:drop-shadow(0 0 0 rgba(27,127,212,0))}
+                     50%{filter:drop-shadow(0 0 10px rgba(27,127,212,.65))}}
+@keyframes hotPulse{0%,100%{filter:drop-shadow(0 0 2px rgba(232,85,45,.35))}
+                    50%{filter:drop-shadow(0 0 16px rgba(232,85,45,.85))}}
+@keyframes floatY{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+@keyframes spinSlow{to{transform:rotate(360deg)}}
+@keyframes dashFlow{to{stroke-dashoffset:-36}}
+
+.sv-draw{stroke-dasharray:var(--len,600);stroke-dashoffset:var(--len,600);
+  animation:drawIn .7s ease forwards}
+.sv-fade{opacity:0;animation:fadeIn .45s ease forwards}
+.sv-rise{opacity:0;animation:riseIn .5s cubic-bezier(.22,1,.36,1) forwards}
+.sv-pop{opacity:0;transform-box:fill-box;transform-origin:center;
+  animation:popIn .45s cubic-bezier(.34,1.56,.64,1) forwards}
+.sv-glow{animation:glowPulse 2.1s ease-in-out infinite}
+.sv-hot{animation:hotPulse 1.3s ease-in-out infinite}
+.sv-float{animation:floatY 2.6s ease-in-out infinite}
+.wire{stroke:var(--ink);stroke-width:2.4;fill:none;stroke-linecap:round;filter:url(#rough2)}
+.wire.live{stroke:var(--pencil-2);stroke-width:2.6;stroke-dasharray:9 9;animation:dashFlow .9s linear infinite}
+/* `animation` is a shorthand, so a flowing wire that also fades in needs BOTH
+   animations declared together — otherwise the flow replaces the fade and the
+   line is stuck at opacity 0. */
+/* packets riding the wires */
+.packet{filter:drop-shadow(0 0 4px currentColor);opacity:.95}
+@keyframes growUp{from{transform:scaleY(0)}to{transform:scaleY(1)}}
+.sv-grow{transform-box:fill-box;transform-origin:bottom;animation:growUp .75s cubic-bezier(.22,1,.36,1) forwards}
+@keyframes sweepX{0%{transform:translateX(0)}100%{transform:translateX(var(--sweep,840px))}}
+.sv-sweep{animation:sweepX 2.4s linear infinite}
+@keyframes blip{0%,100%{opacity:.25}50%{opacity:1}}
+.sv-blip{animation:blip 1.4s ease-in-out infinite}
+@keyframes railPulse{0%,100%{opacity:1}50%{opacity:.55}}
+.rn.now .rn-n{animation:railPulse 2.4s ease-in-out infinite}
+.wire.live.sv-fade{animation:dashFlow .9s linear infinite, fadeIn .45s ease forwards}
+.wire.sv-fade{animation:fadeIn .45s ease forwards}
+.wire.hotwire{stroke:var(--orange)}
+text{font-family:var(--hand)}
+.t-lbl{font-size:17px;fill:var(--ink)}
+.t-serif{font-family:var(--marker);font-weight:700;fill:var(--ink)}
+.t-sub{font-size:16px;fill:var(--muted)}
+.t-mono{font-family:'JetBrains Mono',monospace;font-size:14px;fill:var(--ink-2)}
+.t-big{font-family:var(--marker);font-size:30px;font-weight:700;fill:var(--ink)}
+.box{fill:var(--card);stroke:var(--ink);stroke-width:2.6;filter:url(#rough)}
+.box-navy{fill:var(--card);stroke:var(--ink);stroke-width:2.6;filter:url(#rough)}
+.box-blue{fill:var(--card);stroke:var(--ink);stroke-width:2.6;filter:url(#rough)}
+.box-purple{fill:var(--amber);stroke:var(--ink);stroke-width:2.2;filter:url(#rough)}
+.box-orange{fill:var(--flame);stroke:var(--ink);stroke-width:2.2;filter:url(#rough)}
+.on-navy{fill:var(--ink)}
+
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;
+    transition-duration:.01ms!important}
+  .sv-draw{stroke-dashoffset:0}
+  .sv-fade,.sv-rise,.sv-pop,.pop{opacity:1;transform:none}
+}
+
+/* ================= side-by-side explainer ================= */
+.split{flex:1 1 auto;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.12fr);
+  gap:.9rem;align-items:start}
+.split-l,.split-r{min-width:0;min-height:0}
+.split-l{display:flex;align-items:center;height:100%}
+.lp{background:var(--card);border:2.5px solid var(--ink);border-radius:var(--wobble);
+  padding:.85em 1em;box-shadow:var(--shadow-sm);transform:rotate(.22deg);
+  font-size:clamp(10px,min(1.62vh,0.98vw),27px)}
+.lp-head{display:flex;align-items:center;flex-wrap:wrap;gap:.45em;margin-bottom:.5em;min-width:0}
+.lp-ico{flex:0 0 auto;width:2.3em;height:2.3em;border-radius:var(--wobble-2);display:grid;
+  place-items:center;background:var(--amber-soft);border:2px solid var(--ink)}
+.lp-ico svg{width:1.25em;height:1.25em;color:var(--ink)}
+.lp-n{font-family:var(--hand);font-size:.86em;letter-spacing:1.3px;text-transform:uppercase;color:var(--orange-deep)}
+.lp-t{font-family:var(--marker);font-weight:700;font-size:1.72em;line-height:.98;color:var(--ink)}
+.lp-when{margin-left:auto;flex:0 0 auto;white-space:nowrap;font-size:.72em;letter-spacing:1.2px;
+  text-transform:uppercase;color:var(--ink);background:var(--amber);padding:.18em .55em;
+  border:2px solid var(--ink);border-radius:var(--wobble-2)}
+.lp-owns{margin:0 0 .5em;font-family:var(--hand);font-size:1.08em;line-height:1.26;color:var(--ink-2)}
+.lp-row{display:grid;grid-template-columns:5.6em minmax(0,1fr);gap:.5em;padding:.3em 0;
+  border-top:2px dashed var(--line)}
+.lp-k{font-family:var(--hand);font-size:.86em;letter-spacing:.9px;text-transform:uppercase;
+  color:var(--muted);padding-top:.12em}
+.lp-row.warn .lp-k{color:var(--flame-ink)} .lp-row.good .lp-k{color:var(--green)}
+.lp-v{font-family:var(--hand);font-size:1.04em;line-height:1.26;color:var(--ink-2)}
+@media (max-width:980px){.split{grid-template-columns:1fr;gap:.6rem}}
+
+/* ================= taped-in logo ================= */
+.taped{position:relative;display:inline-block;background:#fff;padding:.55rem .85rem;
+  border:1px solid var(--line);box-shadow:var(--shadow);transform:rotate(-1.6deg)}
+.taped.r{transform:rotate(1.3deg)}
+.taped::before,.taped::after{content:'';position:absolute;width:3rem;height:1rem;
+  background:rgba(255,215,102,.6);border:1px solid rgba(28,26,23,.14);
+  box-shadow:0 1px 2px rgba(28,26,23,.10)}
+.taped::before{top:-.42rem;left:-.85rem;transform:rotate(-24deg)}
+.taped::after{bottom:-.42rem;right:-.85rem;transform:rotate(-24deg)}
+.taped img{display:block;height:var(--logo-h,2.4rem);width:auto}
+.taped figcaption{margin-top:.25rem;font-family:var(--hand);font-size:.5rem;
+  color:var(--muted);text-align:center;letter-spacing:.3px}
+:root[data-theme="dark"] .taped{background:#F7F2E8;color:#1C1A17}
+:root[data-theme="dark"] .taped figcaption{color:#6B6259}
+
+/* ================= chapter opener ================= */
+.chapter{flex:1 1 auto;display:flex;align-items:center;gap:2.4rem;padding:0 .6rem}
+.ch-rail{flex:0 0 auto;display:flex;flex-direction:column;align-items:flex-start;gap:.25rem;
+  padding-right:2.2rem;border-right:4px dashed var(--amber-2)}
+.ch-num{font-family:var(--marker);font-size:7rem;font-weight:700;line-height:.76;
+  color:var(--ink);letter-spacing:0}
+:root[data-theme="dark"] .ch-num{color:var(--ink)}
+.ch-of{font-family:var(--hand);font-size:.58rem;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted)}
+.ch-body{flex:1 1 auto;min-width:0;max-width:46rem}
+.ch-when{font-family:var(--hand);font-size:.66rem;letter-spacing:1.5px;text-transform:uppercase;
+  color:var(--orange-deep);margin-bottom:.3rem}
+.ch-title{display:inline-block;margin:0 0 .65rem;font-family:var(--marker);font-weight:700;
+  font-size:2.6rem;line-height:.98;letter-spacing:0;color:var(--ink);transform:rotate(-.8deg);
+  background:linear-gradient(var(--amber),var(--amber));background-size:100% .5em;
+  background-position:0 .66em;background-repeat:no-repeat;padding:0 .14em}
+:root[data-theme="dark"] .ch-title{color:var(--ink)}
+.ch-problem{margin:0 0 .45rem;font-family:var(--marker);font-weight:700;font-size:1.5rem;
+  line-height:1.06;color:var(--ink)}
+.ch-detail{margin:0 0 .5rem;font-family:var(--hand);font-size:.92rem;line-height:1.34;color:var(--ink-2)}
+.ch-next{margin:0;font-family:var(--hand);font-size:.86rem;line-height:1.3;color:var(--ink);
+  border-left:4px dashed var(--amber-2);padding-left:.7rem}
+@media (max-width:900px){
+  .chapter{flex-direction:column;align-items:flex-start;gap:1rem}
+  .ch-rail{flex-direction:row;align-items:baseline;border-right:none;
+    border-bottom:4px solid var(--orange);padding:0 0 .4rem;gap:.7rem}
+  .ch-num{font-size:3rem}}
+
+/* ================= chapter chip in the masthead ================= */
+
+
+/* ================= notes / overview / zoom ================= */
+#notes::-webkit-scrollbar,#ov::-webkit-scrollbar{width:0;height:0}
+#notes,#ov{scrollbar-width:none}
+#notes{position:fixed;left:0;right:0;bottom:0;z-index:40;transform:translateY(101%);
+  transition:transform .28s ease;background:#1C1A17;color:#eaf3fa;
+  border-top:3px solid var(--gold);padding:14px 24px 16px;max-height:46vh;overflow-y:auto}
+#notes.open{transform:none}
+#notes h6{margin:0 0 6px;font-size:.5rem;letter-spacing:1.6px;text-transform:uppercase;color:var(--gold)}
+#notes .say{font-family:var(--news);font-size:.82rem;line-height:1.55;max-width:66rem}
+#notes .say b{color:var(--gold);font-weight:700}
+#notes .nxt{margin-top:8px;font-size:.5rem;color:#8fabc2;font-family:var(--mono)}
+
+#ov{position:fixed;inset:0;z-index:50;background:var(--bg);padding:28px;display:none;overflow-y:auto}
+#ov.open{display:block}
+#ov h3{margin:0 0 16px;font-family:var(--serif);font-size:.86rem;font-weight:700;color:var(--ink);letter-spacing:0;text-transform:none}
+.ovgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(15rem,1fr));gap:10px}
+.ovc{padding:11px 13px;border-radius:0;border:1px solid var(--line);border-top:3px solid var(--line);
+  cursor:pointer;background:var(--panel);transition:.15s}
+.ovc:hover{border-top-color:var(--orange)}
+.ovc-ch{background:var(--squid);border-color:var(--squid);border-top-color:var(--orange)}
+.ovc-ch .t{color:#fff}.ovc-ch .i{color:var(--orange)}
+.ovc .i{font-family:var(--mono);font-size:.45rem;color:var(--blue);font-weight:700}
+.ovc .t{font-family:var(--serif);font-size:.7rem;font-weight:700;margin-top:4px;line-height:1.2}
+
+#zoom{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(.9);z-index:60;
+  padding:.9rem 1.5rem;border-radius:0;border:2px solid var(--orange);background:var(--panel);
+  color:var(--squid);font-family:var(--mono);font-size:1.5rem;font-weight:700;opacity:0;
+  pointer-events:none;transition:opacity .18s,transform .18s;box-shadow:var(--shadow)}
+#zoom.show{opacity:1;transform:translate(-50%,-50%) scale(1)}
+#zoom small{display:block;font-size:.42em;color:var(--muted);font-weight:400;margin-top:.3rem;text-align:center}
+
+:root:fullscreen main{padding:22px 34px}
+:root:fullscreen header{padding-top:13px;padding-bottom:13px}
+
+@media (max-width:900px){ header,main,footer{padding-left:14px;padding-right:14px} }
+
+/* ================= query-optimization additions ================= */
+.sv-spin{transform-box:fill-box;transform-origin:center;animation:spinSlow 1.1s linear infinite}
+@keyframes growX{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+.sv-growx{transform-box:fill-box;transform-origin:left;animation:growX .9s cubic-bezier(.22,1,.36,1) forwards}
+@keyframes litUp{to{fill:var(--line)}}
+
+/* SQL on paper: mono, keyword-weighted, strings and comments set apart */
+.sql{margin:0;padding:.55rem .8rem;background:var(--paper-2);color:var(--ink);
+  border:2.5px solid var(--ink);border-radius:var(--wobble-2);box-shadow:var(--shadow-sm);
+  font-family:var(--mono);font-size:.56rem;line-height:1.55;white-space:pre-wrap;overflow:hidden}
+.sql b{color:var(--pencil-2);font-weight:700}
+.sql .st{color:var(--leaf)}
+.sql i{color:var(--muted);font-style:normal}
+.sql mark{background:var(--amber);color:var(--ink);border-radius:3px;padding:0 2px}
+.sql mark.bad{background:var(--flame-soft);outline:2px solid var(--flame);outline-offset:0}
+.sql.sm{font-size:.5rem}
+.sql.lg{font-size:.64rem}
+
+/* bad vs good, side by side */
+.pair{display:grid;grid-template-columns:repeat(var(--n,2),minmax(0,1fr));gap:.6rem;align-items:stretch}
+.pair > div{display:flex;flex-direction:column;gap:.25rem;min-width:0}
+.pair .sql{flex:1 1 auto}
+.verdict{font-family:var(--hand);font-size:.6rem;letter-spacing:1.2px;text-transform:uppercase}
+.verdict.bad{color:var(--flame-ink)} .verdict.good{color:var(--leaf)}
+
+/* a strip that names what changes in the plan */
+.tell{display:flex;gap:.6rem;align-items:baseline;padding:.4rem .8rem;background:var(--leaf-soft);
+  border:2.5px solid var(--ink);border-radius:var(--wobble);font-family:var(--hand);font-size:.72rem;
+  color:var(--ink);box-shadow:var(--shadow-sm)}
+.tell b{flex:0 0 auto;font-size:.58rem;letter-spacing:1.3px;text-transform:uppercase;color:var(--leaf)}
+.tell.warn{background:var(--flame-soft)} .tell.warn b{color:var(--flame-ink)}
+.tell.note{background:var(--amber-soft)} .tell.note b{color:var(--orange-deep)}
+.tell code{font-size:.8em}
+
+/* checkpoint question + answer */
+.qa{display:grid;gap:.5rem}
+.q{background:var(--card);border:2.5px solid var(--ink);border-radius:var(--wobble);
+  padding:.5rem .85rem;box-shadow:var(--shadow-sm)}
+.q:nth-child(even){border-radius:var(--wobble-2)}
+.q h3{margin:0;font-family:var(--hand);font-weight:400;font-size:.8rem;line-height:1.3;color:var(--ink)}
+.q h3 span{font-family:var(--marker);font-weight:700;font-size:1.05rem;color:var(--orange-deep);margin-right:.3rem}
+.q p{margin:.25rem 0 0;font-family:var(--hand);font-size:.74rem;line-height:1.3;color:var(--leaf)}
+.q p.wait{color:var(--muted);opacity:.5}
+
+/* big numbers */
+.stats{display:grid;grid-template-columns:repeat(var(--n,3),minmax(0,1fr));gap:.6rem}
+.stat{background:var(--card);border:2.5px solid var(--ink);border-radius:var(--wobble);padding:.5rem .8rem;
+  box-shadow:var(--shadow-sm)}
+.stat .k{font-family:var(--hand);font-size:.56rem;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted)}
+.stat .v{font-family:var(--marker);font-weight:700;font-size:1.9rem;line-height:1;color:var(--ink)}
+.stat .s{font-family:var(--hand);font-size:.64rem;color:var(--ink-2)}
+.stat.warn .v{color:var(--flame-ink)} .stat.good .v{color:var(--leaf)}
+
+/* small data tables */
+.dts{display:grid;grid-template-columns:1fr 1fr;gap:.6rem .9rem}
+.dt{min-width:0}
+.dt h5{margin:0 0 .15rem;font-family:var(--mono);font-size:.54rem;color:var(--orange-deep)}
+.dt table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:.46rem;background:var(--card);
+  border:2px solid var(--ink)}
+.dt th{background:var(--amber);color:var(--ink);text-align:left;padding:.16rem .3rem;font-weight:700;
+  border-bottom:2px solid var(--ink)}
+.dt td{padding:.16rem .3rem;border-top:1px dashed var(--line);color:var(--ink-2);white-space:nowrap}
+.dt tr.hl td{background:var(--amber-soft);color:var(--ink)}
+
+/* a plan printed like EXPLAIN prints it */
+.plan{margin:0;padding:.6rem .9rem;background:var(--paper-2);border:2.5px solid var(--ink);
+  border-radius:var(--wobble-2);box-shadow:var(--shadow-sm);font-family:var(--mono);font-size:.64rem;
+  line-height:1.7;color:var(--ink-2);white-space:pre-wrap}
+.plan span{border-radius:4px;padding:0 3px;transition:background .2s}
+.plan span.on{background:var(--amber);color:var(--ink);box-shadow:0 0 0 2px var(--ink)}
+.plan .bad{color:var(--flame-ink)}
+.anno{display:grid;gap:.3rem}
+.anno div{font-family:var(--hand);font-size:.7rem;line-height:1.3;color:var(--ink-2);
+  padding:.2rem 0 .2rem .6rem;border-left:4px dashed var(--line)}
+.anno div code{font-weight:700}
+.anno div.on{border-left:4px solid var(--amber-2);color:var(--ink)}
+.anno div.warn{border-left-color:var(--flame)}
+
+/* numbered rows (types, workflow) */
+.rows{display:grid;gap:.35rem}
+.row{display:grid;grid-template-columns:var(--cols,7rem 1fr 11rem);gap:.6rem;align-items:center;
+  padding:.38rem .75rem;background:var(--card);border:2.5px solid var(--ink);border-radius:var(--wobble);
+  box-shadow:var(--shadow-sm);font-family:var(--hand);font-size:.68rem;color:var(--ink-2)}
+.row:nth-child(even){border-radius:var(--wobble-2)}
+.row > b{font-family:var(--marker);font-size:1.02rem;color:var(--ink)}
+.row .ex{font-family:var(--mono);font-size:.5rem;color:var(--orange-deep);text-align:right}
+.row.hot{background:var(--amber)}
+.row.hot .ex{color:var(--ink)}
+.row.dim{opacity:.45}
+
+/* the chat bubble on the scenario slide */
+.chat{display:flex;gap:.6rem;align-items:flex-start}
+.chat .av{flex:0 0 auto;width:2.2rem;height:2.2rem;border-radius:50%;display:grid;place-items:center;
+  background:var(--pencil-2);color:var(--card);font-family:var(--marker);font-weight:700;font-size:1.1rem;
+  border:2.5px solid var(--ink)}
+.chat .bub{background:var(--card);border:2.5px solid var(--ink);border-radius:var(--wobble);padding:.45rem .8rem;
+  box-shadow:var(--shadow-sm)}
+.chat .who{font-family:var(--hand);font-size:.54rem;letter-spacing:1px;text-transform:uppercase;color:var(--muted)}
+.chat .msg{font-family:var(--marker);font-weight:700;font-size:1.3rem;line-height:1.05;color:var(--ink)}
+
+/* the title slide */
+.hero{display:flex;flex-direction:column;align-items:flex-start;gap:.7rem;padding:0 .4rem}
+.hero .big{font-family:var(--marker);font-weight:700;font-size:3.4rem;line-height:.95;color:var(--ink)}
+.hero .big em{font-style:normal;background:linear-gradient(var(--amber),var(--amber));background-size:100% .45em;
+  background-position:0 .7em;background-repeat:no-repeat;padding:0 .1em}
+.hero .sub{font-family:var(--hand);font-size:1rem;color:var(--ink-2);max-width:40rem}
+.hero .by{font-family:var(--hand);font-size:.7rem;letter-spacing:1.4px;text-transform:uppercase;color:var(--muted)}
+.hero .by b{font-family:var(--marker);font-size:1.15rem;letter-spacing:0;text-transform:none;color:var(--ink)}
+.race{display:flex;align-items:center;gap:.8rem;font-family:var(--marker);font-weight:700;font-size:1.9rem}
+.race .from{color:var(--flame-ink);text-decoration:line-through;text-decoration-thickness:3px}
+.race .to{color:var(--leaf)}
+.race .arr{color:var(--muted);font-size:1.4rem}
+
+.quote{margin:0;font-family:var(--marker);font-weight:700;font-size:1.25rem;line-height:1.15;color:var(--ink);
+  border-left:5px solid var(--amber-2);padding:.2rem 0 .2rem .8rem}
+.two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:.8rem;align-items:center}
+.two.wl{grid-template-columns:minmax(0,1.25fr) minmax(0,1fr)}
+.stack{display:flex;flex-direction:column;gap:.45rem;min-width:0}
+@media (max-width:980px){.two,.two.wl,.pair,.dts{grid-template-columns:1fr}
+  .stats{grid-template-columns:1fr 1fr}}
+
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <filter id="rough" x="-8%" y="-8%" width="116%" height="116%">
+    <feTurbulence type="fractalNoise" baseFrequency="0.028" numOctaves="3" seed="7" result="n"/>
+    <feDisplacementMap in="SourceGraphic" in2="n" scale="2.6" xChannelSelector="R" yChannelSelector="G"/>
+  </filter>
+  <filter id="rough2" x="-8%" y="-8%" width="116%" height="116%">
+    <feTurbulence type="fractalNoise" baseFrequency="0.042" numOctaves="2" seed="21" result="n"/>
+    <feDisplacementMap in="SourceGraphic" in2="n" scale="1.7" xChannelSelector="R" yChannelSelector="G"/>
+  </filter>
+</defs></svg>
+
+<div id="app">
+  <aside class="rail">
+    <div class="rail-lecture">PostgreSQL<b>Query-Level Optimization</b></div>
+    <nav class="rail-nav" id="railNav"></nav>
+    <div class="rail-foot">
+      <button class="present" id="btnFull" title="Full screen (F)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3"/>
+        </svg><span id="btnFullTxt">Present</span></button>
+      <div class="rail-meta"><span id="stepCount">—</span><span class="clock" id="clock">00:00</span></div>
+      <div class="rail-keys"><kbd>&rarr;</kbd><kbd>&larr;</kbd> step &nbsp;<kbd>S</kbd> notes
+        &nbsp;<kbd>O</kbd> map &nbsp;<kbd>T</kbd> theme &nbsp;<kbd>+</kbd><kbd>&minus;</kbd> size</div>
+      <div class="rail-by">Educator &middot; <b>Satyaki Das</b></div>
+    </div>
+  </aside>
+
+  <section class="doc">
+    <div class="doc-head">
+      <div class="eyebrow" id="sEyebrow">—</div>
+      <h1 class="slide-title" id="sTitle">—</h1>
+      <div class="kick" id="sKick"></div>
+    </div>
+    <main id="stage"></main>
+    <div class="progress"><span id="progFill"></span></div>
+  </section>
+</div>
+
+<div id="notes"><h6>Speaker notes</h6><div class="say" id="noteSay">—</div><div class="nxt" id="noteNxt"></div></div>
+<div id="zoom"></div>
+<div id="ov"><h3>Run of show</h3><div class="ovgrid" id="ovGrid"></div></div>
+<script>
+/* =====================================================================
+   Motion scenes — inline SVG infographics.
+   Every scene takes the current step and returns markup; entrance
+   animations are CSS classes, so a re-render replays only what changed.
+   ===================================================================== */
+/* ---- line-art icon set — stroked, inherits colour, reads at projector size ---- */
+const ICON = {
+  server:  'M3 4h18v6H3zM3 14h18v6H3zM7 7h.01M7 17h.01',
+  db:      'M12 3c4.4 0 8 1.3 8 3s-3.6 3-8 3-8-1.3-8-3 3.6-3 8-3M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3',
+  lock:    'M5 11h14v10H5zM8 11V7a4 4 0 0 1 8 0v4',
+  grid:    'M3 3h18v18H3zM3 9h18M9 3v18',
+  search:  'M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16M21 21l-4.3-4.3',
+  users:   'M16 19v-1a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v1M9 7a3 3 0 1 0 0 6 3 3 0 0 0 0-6M22 19v-1a4 4 0 0 0-3-3.9',
+  cart:    'M2 3h2l2.4 12.5a2 2 0 0 0 2 1.5h9.7a2 2 0 0 0 2-1.6L21 7H6M9.5 21a1 1 0 1 0 0-2 1 1 0 0 0 0 2M18 21a1 1 0 1 0 0-2 1 1 0 0 0 0 2',
+  bolt:    'M13 2 3 14h8l-1 8 10-12h-8z',
+  trash:   'M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14',
+  layers:  'M12 2 2 7l10 5 10-5zM2 12l10 5 10-5M2 17l10 5 10-5',
+  ban:     'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18M5.6 5.6l12.8 12.8',
+  sigma:   'M18 5H6l6 7-6 7h12',
+  clock:   'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18M12 7v5l3 2',
+  build:   'M3 21h18M5 21V7l7-4 7 4v14M9 21v-5h6v5',
+  route:   'M6 3v12a3 3 0 0 0 3 3h9M15 15l3 3-3 3',
+  shield:  'M12 3l8 3v6c0 5-3.5 8.3-8 9.5C7.5 20.3 4 17 4 12V6z',
+  split:   'M6 3v6a3 3 0 0 0 3 3h9M6 21v-6a3 3 0 0 1 3-3M15 9l3 3-3 3',
+  gauge:   'M12 21a9 9 0 1 1 9-9M12 12l5-3'
+};
+const ico = (n, c='currentColor') =>
+  `<svg viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="1.8"
+        stroke-linecap="round" stroke-linejoin="round"><path d="${ICON[n]||ICON.db}"/></svg>`;
+
+/* ---- motion helpers -------------------------------------------------
+   wire() draws a connector AND sends packets riding along it, so a query
+   is visibly travelling rather than implied by a dashed line.          */
+let flowSeq = 0;
+const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
+function wire(d, o = {}){
+  const id  = 'fp' + (++flowSeq);
+  const col = o.color || 'var(--blue)';
+  const dur = o.dur || 1.8;
+  const n   = o.packets == null ? 1 : o.packets;
+  const cls = 'wire' + (o.live === false ? '' : ' live') + (o.cls ? ' ' + o.cls : '');
+  let g = `<path id="${id}" d="${d}" class="${cls}"${o.stroke ? ` stroke="${o.stroke}"` : ''}/>`;
+  if(!REDUCED) for(let i = 0; i < n; i++){
+    g += `<circle r="${o.r || 5}" fill="${col}" class="packet">
+      <animateMotion dur="${dur}s" repeatCount="indefinite"
+        begin="${((o.delay || 0) + i * dur / n).toFixed(2)}s" rotate="auto">
+        <mpath href="#${id}" xlink:href="#${id}"/></animateMotion></circle>`;
+  }
+  return g;
+}
+
+const SV = (vb, inner) => `<svg class="scene" viewBox="${vb}" preserveAspectRatio="xMidYMid meet">${inner}</svg>`;
+const D  = n => `style="animation-delay:${n}ms"`;
+
+/* ---- SQL on paper: escape, then weight the keywords. [[x]] marks a
+   highlight, [[!x]] marks the part that is wrong. ---- */
+const KW = /\b(SELECT|FROM|WHERE|AND|OR|IN|NOT|EXISTS|JOIN|ON|GROUP BY|ORDER BY|LIMIT|DESC|ASC|AS|WITH|RECURSIVE|MATERIALIZED|CREATE|INDEX|CONCURRENTLY|USING|INCLUDE|DISTINCT|SUM|COUNT|LOWER|UPPER|EXPLAIN|ANALYZE|BUFFERS|BETWEEN|LIKE|HASH|GIN|GIST|BRIN|UNION|INSERT|UPDATE|DELETE|CURRENT_DATE)\b/g;
+const esc = t => t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+function sql(s, cls=''){
+  const body = s.replace(/^\n/,'').replace(/\n\s*$/,'').split('\n').map(line => {
+    const i = line.indexOf('--');
+    let code = i >= 0 ? line.slice(0, i) : line;
+    const com = i >= 0 ? line.slice(i) : '';
+    code = esc(code)
+      .replace(/'[^']*'/g, m => `<span class="st">${m}</span>`)
+      .replace(KW, '<b>$1</b>')
+      .replace(/\[\[!(.*?)\]\]/g, '<mark class="bad">$1</mark>')
+      .replace(/\[\[(.*?)\]\]/g, '<mark>$1</mark>');
+    return code + (com ? `<i>${esc(com)}</i>` : '');
+  }).join('\n');
+  return `<pre class="sql ${cls}">${body}</pre>`;
+}
+const tell = (k, v, cls='') => `<div class="tell ${cls}"><b>${k}</b><span>${v}</span></div>`;
+
+/* ---- the dashboard that stopped loading ---- */
+function sceneTimeout(step){
+  let g = `<rect x="30" y="20" width="420" height="250" rx="4" class="box"/>
+    <text class="t-serif" x="240" y="60" text-anchor="middle" style="font-size:25px">Top Customers This Month</text>
+    <path d="M52,76 H428" stroke="var(--line)" stroke-width="2"/>`;
+  [0,1,2].forEach(i => g += `<rect x="70" y="${96+i*22}" width="${200-i*40}" height="10" rx="3" fill="var(--line)" class="nofx"/>`);
+  if(step < 1){
+    g += `<circle cx="240" cy="200" r="30" fill="none" stroke="var(--pencil-2)" stroke-width="6"
+            stroke-dasharray="130 60" stroke-linecap="round" class="sv-spin nofx"/>
+      <text class="t-sub" x="240" y="252" text-anchor="middle">loading…</text>`;
+  } else {
+    g += `<g class="sv-pop"><circle cx="240" cy="198" r="30" fill="var(--flame)" stroke="var(--ink)" stroke-width="2.4" class="sv-hot"/>
+      <path d="M228,186 L252,210 M252,186 L228,210" stroke="var(--on-flame)" stroke-width="5" stroke-linecap="round"/></g>
+      <text class="t-lbl sv-fade" x="240" y="254" text-anchor="middle" style="fill:var(--flame-ink)">Query timed out after 30,000 ms</text>`;
+  }
+  if(step >= 2){
+    g += `<g class="sv-rise">
+      <text class="t-lbl" x="520" y="70">your laptop &middot; 500 test rows</text>
+      <rect x="520" y="82" width="6" height="34" fill="var(--leaf)" stroke="var(--ink)" stroke-width="1.8" class="sv-growx"/>
+      <text class="t-sub" x="540" y="106">fast</text>
+      <text class="t-lbl" x="520" y="160">production &middot; 20,000,000 orders</text>
+      <rect x="520" y="172" width="440" height="34" fill="var(--flame)" stroke="var(--ink)" stroke-width="1.8" class="sv-growx" ${D(250)}/>
+      <text class="t-sub" x="960" y="232" text-anchor="end">30 s+ &mdash; sometimes never</text></g>`;
+  }
+  if(step >= 3) g += `<text class="t-sub sv-fade" x="740" y="266" text-anchor="middle"
+      style="font-style:italic;font-size:17px">same SQL &mdash; 40,000&times; the rows</text>`;
+  return SV('0 0 1000 290', g);
+}
+
+/* ---- four tables, drawn to scale by row count ---- */
+const TABLES = [
+  {t:'customers',   n:'~2,000,000',  v:2e6,  c:['customer_id PK','name','email','city','created_at']},
+  {t:'orders',      n:'~20,000,000', v:2e7,  c:['order_id PK','customer_id FK','order_date','status','total_amount']},
+  {t:'order_items', n:'~80,000,000', v:8e7,  c:['item_id PK','order_id FK','product_id FK','quantity','unit_price']},
+  {t:'products',    n:'~50,000',     v:5e4,  c:['product_id PK','name','category','price','stock']}
+];
+function sceneTables(step){
+  let g = '';
+  TABLES.forEach((T, i) => {
+    if(step < i) return;
+    const x = 20 + i*245, w = 220;
+    const h = Math.max(3, 150 * T.v / 8e7);
+    g += `<g class="sv-rise">
+      <rect x="${x}" y="10" width="${w}" height="44" class="box-purple"/>
+      <text class="t-serif" x="${x+w/2}" y="40" text-anchor="middle" style="font-size:22px">${T.t}</text>
+      <rect x="${x}" y="54" width="${w}" height="150" class="box"/>
+      ${T.c.map((c,j)=>`<text class="t-mono" x="${x+14}" y="${80+j*26}" style="font-size:14px;${j===0?'font-weight:700;fill:var(--ink)':''}">${c}</text>`).join('')}
+      <rect x="${x+w/2-50}" y="${380-h}" width="100" height="${h}" fill="${T.v >= 2e7 ? 'var(--flame)' : 'var(--pencil)'}"
+            stroke="var(--ink)" stroke-width="2" class="sv-grow nofx"/>
+      <text class="t-lbl" x="${x+w/2}" y="${372-h}" text-anchor="middle" style="font-size:18px">${T.n} rows</text></g>`;
+  });
+  g += `<path d="M10,381 H990" stroke="var(--ink)" stroke-width="2.4" class="wire" style="stroke-dasharray:none"/>`;
+  return SV('0 0 1000 392', g);
+}
+
+/* ---- the lecture's road: four stops from 30 s to milliseconds ---- */
+function scenePath(step){
+  const pts = [[130,150],[370,90],[620,150],[860,90]];
+  const lbl = ['Read the plan','Fix the query text','Restructure (CTEs)','Add the right index'];
+  let g = `<path d="M40,170 C120,170 110,150 130,150 S300,90 370,90 S560,150 620,150 S800,90 860,90 S950,70 970,70"
+              fill="none" stroke="var(--line)" stroke-width="16" stroke-linecap="round"/>`;
+  g += `<text class="t-lbl" x="40" y="206" style="fill:var(--flame-ink)">30,000 ms</text>
+        <text class="t-lbl" x="970" y="48" text-anchor="end" style="fill:var(--leaf)">milliseconds</text>`;
+  if(step >= 4) g += wire('M40,170 C120,170 110,150 130,150 S300,90 370,90 S560,150 620,150 S800,90 860,90 S950,70 970,70',
+                          {packets:2, dur:3.2, color:'var(--flame)', r:7});
+  pts.forEach((p, i) => {
+    if(step < i) return;
+    const lit = step === i;
+    g += `<g class="sv-pop">
+      <circle cx="${p[0]}" cy="${p[1]}" r="30" fill="${lit ? 'var(--amber)' : 'var(--card)'}" stroke="var(--ink)" stroke-width="2.6" ${lit?'class="sv-glow"':''}/>
+      <text class="t-big" x="${p[0]}" y="${p[1]+11}" text-anchor="middle">${i+1}</text>
+      <text class="t-lbl" x="${p[0]}" y="${p[1] + (p[1] > 100 ? 62 : -44)}" text-anchor="middle" style="font-size:19px">${lbl[i]}</text></g>`;
+  });
+  return SV('0 0 1000 230', g);
+}
+
+/* ---- same destination, a faster road ---- */
+function sceneRoad(step){
+  let g = `<g><rect x="30" y="92" width="70" height="56" class="box"/><path d="M24,96 L65,62 L106,96" fill="none" stroke="var(--ink)" stroke-width="2.6"/>
+      <text class="t-sub" x="65" y="176" text-anchor="middle">your house</text></g>
+    <g><rect x="880" y="72" width="90" height="76" class="box-purple"/>
+      <text class="t-sub" x="925" y="176" text-anchor="middle">the rows</text></g>`;
+  g += `<path d="M100,120 C200,-10 330,240 470,60 S700,230 880,110" fill="none" stroke="var(--flame)" stroke-width="3"
+          stroke-dasharray="8 8" class="sv-draw" style="--len:1400"/>
+    <text class="t-sub sv-fade" x="420" y="24" style="fill:var(--flame-ink)">the route the planner took today</text>`;
+  if(step >= 1) g += wire('M100,128 L880,128', {color:'var(--leaf)', stroke:'var(--leaf)', packets:2, dur:1.4, r:6})
+      + `<text class="t-lbl sv-fade" x="490" y="160" text-anchor="middle" style="fill:var(--leaf)">a faster road &mdash; same house, same rows</text>`;
+  return SV('0 0 1000 190', g);
+}
+
+/* ---- the planner: SQL in, candidate plans out, cheapest wins ---- */
+function scenePlanner(step){
+  let g = `<rect x="20" y="118" width="220" height="80" class="box"/>
+    <text class="t-lbl" x="130" y="146" text-anchor="middle">your SQL</text>
+    <text class="t-mono" x="130" y="176" text-anchor="middle" style="font-size:13px">WHERE total &gt; 5000</text>`;
+  if(step >= 1){
+    g += wire('M240,158 L320,158', {packets:1, dur:1});
+    g += `<g class="sv-pop"><rect x="320" y="108" width="170" height="100" class="box-purple"/>
+      <text class="t-serif" x="405" y="152" text-anchor="middle" style="font-size:26px">planner</text>
+      <text class="t-sub" x="405" y="180" text-anchor="middle" style="fill:var(--ink-2)">estimates every route</text></g>`;
+  }
+  const plans = [['Seq Scan → Filter', 330], ['Bitmap Index Scan', 120], ['Index Only Scan', 26]];
+  if(step >= 2) plans.forEach((p, i) => {
+    const y = 20 + i*105;
+    const win = step >= 3 && i === 2;
+    g += wire(`M490,158 C540,158 530,${y+40} 580,${y+40}`, {packets:1, dur:1.2, delay:i*.2, live: step < 3 || win});
+    g += `<g class="sv-rise" ${D(i*120)}>
+      <rect x="580" y="${y}" width="400" height="80" rx="3" fill="${win ? 'var(--amber)' : 'var(--card)'}" stroke="var(--ink)" stroke-width="2.4" ${win?'class="sv-glow"':''}/>
+      <text class="t-lbl" x="598" y="${y+30}">${p[0]}</text>
+      <text class="t-sub" x="598" y="${y+60}">cost</text>
+      <rect x="640" y="${y+48}" width="${p[1]}" height="16" fill="${i === 0 ? 'var(--flame)' : 'var(--pencil)'}" stroke="var(--ink)" stroke-width="1.6" class="sv-growx nofx" ${D(300+i*120)}/>
+      ${win ? `<text class="t-lbl" x="965" y="${y+30}" text-anchor="end" style="fill:var(--ink)">&check; chosen</text>` : ''}</g>`;
+  });
+  return SV('0 0 1000 330', g);
+}
+
+/* ---- width: bytes per row is I/O ---- */
+function sceneWidth(step, la, lb){
+  let g = '';
+  const panel = (x, cols, title, lab, bad, delay) => {
+    let s = `<g class="sv-rise" ${D(delay)}><text class="t-lbl" x="${x}" y="26">${title}</text>`;
+    for(let r = 0; r < 5; r++) for(let c = 0; c < cols; c++)
+      s += `<rect x="${x + c*62}" y="${44 + r*30}" width="56" height="22" rx="2"
+               fill="${bad && c > 1 ? 'var(--flame-soft)' : 'var(--pencil-soft)'}" stroke="var(--ink)" stroke-width="1.5" class="nofx"/>`;
+    return s + `<text class="t-lbl" x="${x}" y="222" style="fill:${bad ? 'var(--flame-ink)' : 'var(--leaf)'}">${lab}</text></g>`;
+  };
+  g += panel(20, 7, 'SELECT *', la, true, 0);
+  if(step >= 1) g += panel(600, 2, 'only the columns you show', lb, false, 0);
+  return SV('0 0 1000 236', g);
+}
+
+/* ---- the Seq Scan: every row read, almost all thrown away ---- */
+function sceneSeqScan(step){
+  const cols = 40, rows = 8, cw = 22, ch = 22, x0 = 40, y0 = 20;
+  let g = '';
+  const keep = new Set(['13,3', '31,6']);
+  for(let c = 0; c < cols; c++) for(let r = 0; r < rows; r++){
+    const x = x0 + c*cw, y = y0 + r*ch;
+    const k = keep.has(c+','+r);
+    g += `<rect x="${x}" y="${y}" width="${cw-3}" height="${ch-3}" rx="2" class="nofx"
+            fill="var(--card)" stroke="var(--line)" stroke-width="1.2"/>`;
+    if(step >= 1) g += k
+      ? `<rect x="${x}" y="${y}" width="${cw-3}" height="${ch-3}" rx="2" class="nofx sv-pop" ${D(c*60)}
+           fill="var(--amber)" stroke="var(--ink)" stroke-width="1.8"/>`
+      : `<rect x="${x}" y="${y}" width="${cw-3}" height="${ch-3}" rx="2" class="nofx sv-fade" ${D(c*60)}
+           fill="var(--muted)" fill-opacity=".3" stroke="none"/>`;
+  }
+  if(step >= 1) g += `<rect x="${x0-6}" y="${y0-8}" width="6" height="${rows*ch+10}" fill="var(--flame)" class="nofx sv-sweep" style="--sweep:${cols*cw}px"/>`;
+  g += `<text class="t-sub" x="${x0}" y="${y0+rows*ch+26}">each square &asymp; 62,500 rows of orders &mdash; every one of them is read</text>`;
+  return SV('0 0 1000 230', g);
+}
+
+/* ---- correlated subquery vs one hash join ---- */
+function sceneLoops(step){
+  let g = `<text class="t-lbl" x="20" y="24" style="fill:var(--flame-ink)">correlated &mdash; inner query per row</text>`;
+  for(let i = 0; i < 6; i++){
+    g += `<rect x="20" y="${44+i*34}" width="130" height="26" class="box"/>
+      <text class="t-mono" x="32" y="${62+i*34}" style="font-size:13px">customer ${i+1}</text>`;
+    g += wire(`M150,${57+i*34} C240,${57+i*34} 250,140 330,140`, {packets:1, dur:1.1, delay:i*.18, color:'var(--flame)', live:true});
+  }
+  g += `<rect x="330" y="70" width="130" height="140" class="box-orange"/>
+    <text class="t-lbl" x="395" y="136" text-anchor="middle" style="fill:var(--on-flame)">orders</text>
+    <text class="t-sub" x="395" y="160" text-anchor="middle" style="fill:var(--on-flame)">scanned again</text>
+    <text class="t-lbl" x="240" y="270" text-anchor="middle" style="fill:var(--flame-ink)">Nested Loop &middot; loops = 2,000,000</text>`;
+  if(step >= 1){
+    g += `<g class="sv-rise"><text class="t-lbl" x="540" y="24" style="fill:var(--leaf)">JOIN / EXISTS &mdash; one pass each</text>
+      <rect x="540" y="60" width="120" height="160" class="box"/>
+      <text class="t-lbl" x="600" y="146" text-anchor="middle">customers</text>
+      <rect x="850" y="60" width="120" height="160" class="box"/>
+      <text class="t-lbl" x="910" y="146" text-anchor="middle">orders</text>
+      <rect x="712" y="100" width="90" height="80" class="box-purple"/>
+      <text class="t-lbl" x="757" y="146" text-anchor="middle">hash</text></g>
+      ${wire('M850,125 L802,125', {packets:2, dur:.9, color:'var(--leaf)'})}
+      ${wire('M660,155 L712,155', {packets:2, dur:.9, color:'var(--pencil-2)'})}
+      <text class="t-sub sv-fade" x="757" y="80" text-anchor="middle">build once</text>
+      <text class="t-sub sv-fade" x="686" y="200" text-anchor="middle">probe</text>
+      <text class="t-lbl sv-fade" x="755" y="270" text-anchor="middle" style="fill:var(--leaf)">Hash Join &middot; loops = 1</text>`;
+  }
+  return SV('0 0 1000 285', g);
+}
+
+/* ---- statistics: estimate vs reality ---- */
+function sceneStats(step){
+  const bar = (y, lab, w, col, d) => `<text class="t-lbl" x="20" y="${y+22}" style="font-size:17px">${lab}</text>
+    <rect x="250" y="${y}" width="${Math.max(3,w)}" height="30" fill="${col}" stroke="var(--ink)" stroke-width="1.8" class="sv-growx nofx" ${D(d)}/>`;
+  let g = `<text class="t-serif" x="20" y="28" style="font-size:22px">stale statistics</text>
+    ${bar(46, 'planner estimates', 1, 'var(--pencil)', 0)}
+    <text class="t-mono" x="262" y="67">rows=100</text>
+    ${bar(90, 'actually returned', 700, 'var(--flame)', 200)}
+    <text class="t-mono" x="960" y="112" text-anchor="end" style="fill:var(--on-flame)">2,000,000</text>`;
+  if(step >= 1) g += `<g class="sv-rise"><text class="t-serif" x="20" y="176" style="font-size:22px">after ANALYZE orders;</text>
+    ${bar(194, 'planner estimates', 690, 'var(--leaf)', 100)}
+    ${bar(238, 'actually returned', 700, 'var(--leaf)', 250)}
+    <text class="t-sub" x="960" y="296" text-anchor="end">the gap closes &mdash; and the plan often changes on its own</text></g>`;
+  return SV('0 0 1000 306', g);
+}
+
+/* ---- a CTE, as a pipeline ---- */
+function sceneCTEFlow(step){
+  const box = (x, w, t, s, cls='box') => `<rect x="${x}" y="50" width="${w}" height="90" class="${cls}"/>
+     <text class="t-lbl" x="${x+w/2}" y="88" text-anchor="middle">${t}</text>
+     <text class="t-sub" x="${x+w/2}" y="114" text-anchor="middle">${s}</text>`;
+  let g = box(10, 170, 'orders', '20M rows');
+  if(step >= 1) g += wire('M180,95 L240,95', {packets:3, dur:1}) + `<g class="sv-pop">${box(240, 230, 'customer_totals', 'SUM once per customer', 'box-purple')}</g>`;
+  if(step >= 2) g += wire('M470,95 L530,95', {packets:2, dur:1}) + `<g class="sv-pop">${box(530, 190, 'JOIN customers', 'attach the name')}</g>`;
+  if(step >= 3) g += wire('M720,95 L780,95', {packets:1, dur:1}) + `<g class="sv-pop">${box(780, 210, 'top 20', 'ORDER BY spent DESC')}</g>`;
+  return SV('0 0 1000 160', g);
+}
+
+/* ---- the materialization trap ---- */
+function sceneTrap(step){
+  let g = `<text class="t-lbl" x="20" y="26" style="fill:var(--flame-ink)">AS MATERIALIZED &rarr; CTE Scan</text>
+    <rect x="20" y="50" width="120" height="150" class="box"/><text class="t-lbl" x="80" y="130" text-anchor="middle">orders</text>
+    ${wire('M140,125 L220,125', {packets:6, dur:1, color:'var(--flame)', r:4})}
+    <rect x="220" y="44" width="160" height="162" class="box-orange"/>
+    <text class="t-lbl" x="300" y="112" text-anchor="middle" style="fill:var(--on-flame)">all_orders</text>
+    <text class="t-sub" x="300" y="138" text-anchor="middle" style="fill:var(--on-flame)">20,000,000 rows</text>
+    <text class="t-sub" x="300" y="160" text-anchor="middle" style="fill:var(--on-flame)">computed first</text>
+    ${wire('M380,125 L440,125', {packets:1, dur:1, color:'var(--flame)'})}
+    <text class="t-mono" x="400" y="232" text-anchor="middle">WHERE order_id = 42</text>
+    <text class="t-lbl" x="455" y="131">1</text>
+    <text class="t-sub" x="220" y="262">the filter waits outside the wall</text>`;
+  if(step >= 1) g += `<g class="sv-rise">
+    <text class="t-lbl" x="560" y="26" style="fill:var(--leaf)">inlined &rarr; Index Scan</text>
+    <rect x="560" y="50" width="120" height="150" class="box"/><text class="t-lbl" x="620" y="130" text-anchor="middle">orders</text>
+    <path d="M760,70 L720,150 L800,150 Z" fill="var(--amber)" stroke="var(--ink)" stroke-width="2.4"/>
+    <text class="t-sub" x="760" y="176" text-anchor="middle">primary key</text>
+    ${wire('M800,120 L900,120', {packets:1, dur:.8, color:'var(--leaf)', r:6})}
+    <rect x="900" y="100" width="70" height="40" class="box-purple"/><text class="t-lbl" x="935" y="126" text-anchor="middle">1 row</text>
+    <text class="t-sub" x="560" y="262">the WHERE pushes inside &mdash; straight to row 42</text></g>`;
+  return SV('0 0 1000 280', g);
+}
+
+/* ---- the index at the back of a book ---- */
+function sceneBook(step){
+  let g = `<text class="t-lbl" x="20" y="26" style="fill:var(--flame-ink)">without an index &mdash; read all 900 pages</text>`;
+  for(let i = 0; i < 24; i++){
+    const x = 20 + (i%12)*38, y = 44 + Math.floor(i/12)*70;
+    const hit = i === 3 || i === 11 || i === 17;
+    g += `<rect x="${x}" y="${y}" width="30" height="56" rx="2" fill="var(--card)" stroke="var(--ink)" stroke-width="1.6" class="nofx"/>
+      <rect x="${x}" y="${y}" width="30" height="56" rx="2" fill="${hit ? 'var(--amber)' : 'var(--line)'}" class="nofx sv-fade" ${D(i*110)}/>`;
+  }
+  g += `<text class="t-mono" x="20" y="212" style="fill:var(--flame-ink)">= Seq Scan</text>`;
+  if(step >= 1){
+    g += `<g class="sv-rise"><text class="t-lbl" x="560" y="26" style="fill:var(--leaf)">with an index &mdash; flip, then jump</text>
+      <rect x="560" y="44" width="230" height="130" class="box-purple"/>
+      <text class="t-serif" x="578" y="76" style="font-size:20px">Index</text>
+      <text class="t-mono" x="578" y="104" style="font-size:13px">photo… 112</text>
+      <text class="t-mono" x="578" y="126" style="font-size:13px;font-weight:700;fill:var(--ink)">photosynthesis 348</text>
+      <text class="t-mono" x="578" y="148" style="font-size:13px">phylum 611</text></g>
+      <rect x="880" y="60" width="44" height="80" rx="2" fill="var(--amber)" stroke="var(--ink)" stroke-width="2" class="sv-pop" ${D(500)}/>
+      <text class="t-sub" x="902" y="166" text-anchor="middle">p. 348</text>
+      ${wire('M790,120 L880,100', {packets:1, dur:.9, color:'var(--leaf)', r:6})}
+      <text class="t-mono sv-fade" x="560" y="212" style="fill:var(--leaf)">= Index Scan</text>`;
+  }
+  return SV('0 0 1000 226', g);
+}
+
+/* ---- B-tree ---- */
+function sceneBtree(step){
+  const node = (cx, y, t, w, lit) => `<rect x="${cx-w/2}" y="${y}" width="${w}" height="42" rx="3"
+      fill="${lit ? 'var(--amber)' : 'var(--card)'}" stroke="var(--ink)" stroke-width="2.4" ${lit?'class="sv-glow"':''}/>
+    <text class="t-lbl" x="${cx}" y="${y+28}" text-anchor="middle" style="font-size:19px">${t}</text>`;
+  const look = step >= 2;
+  const leaves = [[140,'12'],[250,'28'],[440,'55'],[550,'70'],[750,'90'],[860,'120']];
+  const range = step >= 3;
+  let g = '';
+  const edges = [[500,62,200,140],[500,62,500,140],[500,62,800,140],
+                 [200,182,140,250],[200,182,250,250],[500,182,440,250],[500,182,550,250],[800,182,750,250],[800,182,860,250]];
+  edges.forEach((e,i) => g += `<path d="M${e[0]},${e[1]} L${e[2]},${e[3]}" class="wire sv-fade" ${D(i*50)}/>`);
+  g += node(500, 20, '40 | 80', 170, look && step < 3);
+  [[200,'12 | 28'],[500,'55 | 70'],[800,'90 | 120']].forEach((b,i) =>
+    g += `<g class="sv-rise" ${D(150+i*80)}>${node(b[0], 140, b[1], 150, look && step < 3 && i === 1)}</g>`);
+  leaves.forEach((l,i) => {
+    const lit = (look && step < 3 && l[1] === '70') || (range && i >= 2 && i <= 4);
+    g += `<g class="sv-pop" ${D(400+i*60)}>${node(l[0], 250, l[1], 84, lit)}</g>`;
+  });
+  for(let i = 0; i < 5; i++) if(i !== 1 && i !== 3)
+    g += `<path d="M${leaves[i][0]+42},271 L${leaves[i+1][0]-42},271" class="wire" style="stroke-dasharray:none"/>`;
+  g += `<path d="M292,271 L398,271" class="wire"/><path d="M592,271 L708,271" class="wire"/>`;
+  if(look && !range) g += wire('M500,62 L500,140 M500,182 L550,250', {packets:1, dur:1.4, color:'var(--flame)', r:7, live:false})
+      + `<text class="t-lbl sv-fade" x="20" y="110" style="fill:var(--flame-ink)">find 70: root &rarr; branch &rarr; leaf</text>`;
+  if(range) g += wire('M440,300 L550,300 L750,300', {packets:2, dur:1.6, color:'var(--leaf)', r:6})
+      + `<text class="t-sub sv-fade" x="595" y="330" text-anchor="middle">BETWEEN 55 AND 90 &mdash; walk the linked leaves</text>`;
+  else g += `<text class="t-sub" x="500" y="330" text-anchor="middle">every leaf at the same depth &middot; leaves linked in order</text>`;
+  return SV('0 0 1000 340', g);
+}
+
+/* ---- Hash ---- */
+function sceneHash(step){
+  let g = `<rect x="20" y="90" width="210" height="60" class="box"/>
+    <text class="t-mono" x="125" y="126" text-anchor="middle" style="font-size:16px">'a9f3c…'</text>
+    <text class="t-sub" x="125" y="176" text-anchor="middle">session_token</text>`;
+  if(step >= 1) g += wire('M230,120 L300,120', {packets:1, dur:.9}) + `<g class="sv-pop">
+    <circle cx="350" cy="120" r="50" fill="var(--amber)" stroke="var(--ink)" stroke-width="2.6"/>
+    <text class="t-lbl" x="350" y="126" text-anchor="middle">hash()</text></g>
+    ${wire('M400,120 L470,120', {packets:1, dur:.9, delay:.4})}
+    <text class="t-big sv-fade" x="490" y="130">= 3</text>`;
+  const bx = i => 580 + i*82;
+  for(let i = 0; i < 5; i++){
+    const lit = step >= 1 && i === 3;
+    g += `<rect x="${bx(i)}" y="80" width="70" height="90" rx="3" fill="${lit ? 'var(--amber)' : 'var(--card)'}"
+            stroke="var(--ink)" stroke-width="2.2" ${step >= 1 && !lit ? 'opacity=".4"' : ''} ${lit?'class="sv-glow"':''}/>
+      <text class="t-lbl" x="${bx(i)+35}" y="200" text-anchor="middle">${i}</text>`;
+  }
+  if(step >= 1) g += `<text class="t-sub sv-fade" x="${bx(3)+35}" y="62" text-anchor="middle">look only here</text>`;
+  if(step >= 2) g += `<text class="t-lbl sv-rise" x="580" y="240" style="fill:var(--flame-ink)">no order kept &rarr; &lt;  &gt;  BETWEEN  ORDER BY  LIKE 'a%'  &#10005;</text>`;
+  return SV('0 0 1000 256', g);
+}
+
+/* ---- GIN: value -> posting list ---- */
+function sceneGin(step){
+  const rows = [[5,'{new}'],[12,'{sale}'],[88,'{sale,new}'],[140,'{sale,gift}']];
+  const lists = [['sale','{12, 88, 140}'],['new','{5, 88}'],['gift','{140}']];
+  let g = `<text class="t-lbl" x="20" y="24">products (row &rarr; values)</text>`;
+  rows.forEach((r,i) => {
+    const hit = step >= 2 && r[1].includes('sale');
+    g += `<rect x="20" y="${40+i*52}" width="300" height="42" rx="3" fill="${hit ? 'var(--amber)' : 'var(--card)'}" stroke="var(--ink)" stroke-width="2.2"/>
+      <text class="t-mono" x="36" y="${67+i*52}" style="font-size:15px">row ${r[0]}</text>
+      <text class="t-mono" x="140" y="${67+i*52}" style="font-size:15px;fill:var(--orange-deep)">${r[1]}</text>`;
+  });
+  if(step >= 1){
+    g += `<text class="t-lbl sv-fade" x="600" y="24">GIN (value &rarr; rows)</text>`;
+    lists.forEach((l,i) => {
+      const hit = step >= 2 && i === 0;
+      g += `<g class="sv-rise" ${D(i*120)}>
+        <rect x="600" y="${50+i*62}" width="120" height="46" rx="3" fill="${hit ? 'var(--amber)' : 'var(--pencil-soft)'}" stroke="var(--ink)" stroke-width="2.2"/>
+        <text class="t-lbl" x="660" y="${80+i*62}" text-anchor="middle">${l[0]}</text>
+        <text class="t-mono" x="740" y="${79+i*62}" style="font-size:16px">&rarr; ${l[1]}</text></g>`;
+    });
+  }
+  if(step >= 2){
+    [1,2,3].forEach((r,i) => g += wire(`M600,73 C480,73 440,${61+r*52} 320,${61+r*52}`, {packets:1, dur:1.1, delay:i*.2, color:'var(--leaf)'}));
+    g += `<text class="t-mono sv-fade" x="600" y="260" style="font-size:15px">tags @&gt; '{sale}' &rarr; read one list</text>`;
+  }
+  return SV('0 0 1000 272', g);
+}
+
+/* ---- GiST: bounding boxes, prune whole regions ---- */
+function sceneGist(step){
+  const pr = step >= 1;
+  const pts = [[110,90],[150,160],[210,110],[260,200],[190,230],[420,80],[470,130],[540,200],[590,240],[510,90]];
+  let g = `<rect x="30" y="20" width="620" height="260" rx="3" fill="var(--paper-2)" stroke="var(--ink)" stroke-width="2"/>`;
+  g += `<rect x="60" y="50" width="250" height="210" rx="3" fill="none" stroke="var(--pencil-2)" stroke-width="3" ${pr ? 'opacity=".3"' : ''}/>
+    <text class="t-lbl" x="70" y="46" ${pr ? 'opacity=".3"' : ''}>A</text>
+    <rect x="380" y="50" width="250" height="210" rx="3" fill="${pr ? 'var(--amber-soft)' : 'none'}" stroke="var(--pencil-2)" stroke-width="3"/>
+    <text class="t-lbl" x="390" y="46">B</text>
+    <rect x="400" y="64" width="160" height="92" rx="3" fill="${step >= 2 ? 'var(--amber)' : 'none'}" stroke="var(--ink)" stroke-width="2" stroke-dasharray="6 5"/>
+    <text class="t-sub" x="410" y="176">B1</text>
+    <rect x="490" y="176" width="126" height="76" rx="3" fill="none" stroke="var(--ink)" stroke-width="2" stroke-dasharray="6 5" ${step >= 2 ? 'opacity=".35"' : ''}/>`;
+  pts.forEach((p,i) => g += `<circle cx="${p[0]}" cy="${p[1]}" r="7" fill="var(--pencil-2)" class="nofx" ${pr && i < 5 ? 'opacity=".25"' : ''}/>`);
+  g += `<circle cx="455" cy="108" r="10" fill="var(--flame)" stroke="var(--ink)" stroke-width="2" class="sv-hot nofx"/>
+    <text class="t-lbl" x="470" y="112" style="fill:var(--flame-ink)">you</text>`;
+  const tn = (x, y, t, dim, lit) => `<rect x="${x-34}" y="${y}" width="68" height="36" rx="3" fill="${lit ? 'var(--amber)' : 'var(--card)'}"
+      stroke="var(--ink)" stroke-width="2" ${dim ? 'opacity=".3"' : ''}/><text class="t-lbl" x="${x}" y="${y+25}" text-anchor="middle" ${dim ? 'opacity=".3"' : ''}>${t}</text>`;
+  g += `<path d="M820,76 L740,120 M820,76 L900,120 M740,156 L700,210 M740,156 L780,210 M900,156 L860,210 M900,156 L940,210" class="wire"/>`;
+  g += tn(820, 40, 'root') + tn(740, 120, 'A', pr) + tn(900, 120, 'B', false, pr) +
+       tn(700, 210, 'A1', pr) + tn(780, 210, 'A2', pr) + tn(860, 210, 'B1', false, step >= 2) + tn(940, 210, 'B2', step >= 2);
+  if(pr) g += `<text class="t-sub sv-fade" x="740" y="276" text-anchor="middle" style="fill:var(--flame-ink)">A pruned whole</text>`;
+  return SV('0 0 1000 290', g);
+}
+
+/* ---- BRIN: min / max per block range ---- */
+function sceneBrin(step){
+  const R = [['blocks 1–64','09-01','09-30',false],['blocks 65–128','10-01','10-31',false],['blocks 129–192','11-01','11-30',true]];
+  let g = `<text class="t-mono" x="20" y="28" style="font-size:17px">query: created_at &ge; '11-01'</text>`;
+  R.forEach((r,i) => {
+    const y = 50 + i*64;
+    const shown = step > i;
+    g += `<rect x="20" y="${y}" width="620" height="50" rx="3" fill="${shown && r[3] ? 'var(--amber)' : 'var(--card)'}"
+            stroke="var(--ink)" stroke-width="2.2" ${shown && !r[3] ? 'opacity=".5"' : ''}/>
+      <text class="t-lbl" x="40" y="${y+32}">${r[0]}</text>
+      <text class="t-mono" x="260" y="${y+31}">min ${r[1]}</text>
+      <text class="t-mono" x="420" y="${y+31}">max ${r[2]}</text>`;
+    if(shown) g += `<text class="t-lbl sv-pop" x="680" y="${y+32}" style="fill:${r[3] ? 'var(--leaf)' : 'var(--flame-ink)'}">${r[3] ? '&check; scan' : '&#10005; skip — max &lt; 11-01'}</text>`;
+  });
+  if(step >= 3) g += `<text class="t-sub sv-fade" x="20" y="262">three rows of summary for 192 blocks &mdash; the index is kilobytes</text>`;
+  return SV('0 0 1000 276', g);
+}
+
+/* ---- composite index: leftmost prefix ---- */
+function sceneComposite(step){
+  const E = [[1017,'2025-11-12'],[1024,'2025-09-03'],[1024,'2025-10-21'],[1024,'2025-11-28'],[1024,'2025-11-29'],
+             [2087,'2025-10-02'],[2087,'2025-11-28'],[3391,'2025-08-15'],[3391,'2025-11-30']];
+  let g = `<text class="t-lbl" x="30" y="24">index entries, sorted by (customer_id, order_date)</text>`;
+  E.forEach((e,i) => {
+    const y = 38 + i*31;
+    let lit = false, bad = false;
+    if(step === 1) lit = e[0] === 1024;
+    if(step === 2) lit = e[0] === 1024 && e[1] > '2025-11-01';
+    if(step >= 3) bad = e[1] > '2025-11-01';
+    g += `<rect x="30" y="${y}" width="330" height="26" rx="2" fill="${lit ? 'var(--amber)' : bad ? 'var(--flame-soft)' : 'var(--card)'}"
+            stroke="${bad ? 'var(--flame)' : 'var(--ink)'}" stroke-width="1.8" class="nofx"/>
+      <text class="t-mono" x="46" y="${y+18}" style="font-size:14px;font-weight:700;fill:var(--ink)">${e[0]}</text>
+      <text class="t-mono" x="160" y="${y+18}" style="font-size:14px">${e[1]}</text>`;
+  });
+  const msg = [
+    ['A phone book: sorted by surname, then first name.', 'var(--ink-2)'],
+    ['&check; customer_id = 1024 — one contiguous block', 'var(--leaf)'],
+    ['&check; + order_date &gt; 11-01 — a slice of that block', 'var(--leaf)'],
+    ['&#10005; order_date &gt; 11-01 alone — scattered everywhere', 'var(--flame-ink)']][Math.min(step,3)];
+  g += `<text class="t-lbl sv-fade" x="410" y="150" style="font-size:21px;fill:${msg[1]}">${msg[0]}</text>`;
+  if(step >= 3) g += `<text class="t-sub sv-fade" x="410" y="186">like finding everyone named "Riya" in a phone book sorted by surname</text>`;
+  return SV('0 0 1000 322', g);
+}
+
+/* ---- every write updates every index ---- */
+function sceneWriteCost(step){
+  let g = `<rect x="20" y="100" width="170" height="60" class="box-orange"/>
+    <text class="t-lbl" x="105" y="136" text-anchor="middle" style="fill:var(--on-flame)">INSERT 1 row</text>`;
+  const T = ['orders (heap)','idx customer_id','idx order_date','idx status','idx (cust, date)'];
+  T.forEach((t,i) => {
+    if(i > 0 && step < 1) return;
+    const y = 10 + i*50;
+    g += wire(`M190,130 C300,130 300,${y+20} 420,${y+20}`, {packets:1, dur:1.1, delay:i*.12, color:'var(--flame)'});
+    g += `<g class="sv-rise" ${D(i*90)}><rect x="420" y="${y}" width="240" height="40" class="${i ? 'box' : 'box-purple'}"/>
+      <text class="t-lbl" x="540" y="${y+26}" text-anchor="middle">${t}</text></g>`;
+  });
+  if(step >= 1) g += `<text class="t-lbl sv-fade" x="700" y="120">one row written,</text>
+      <text class="t-lbl sv-fade" x="700" y="148" style="fill:var(--flame-ink)">five structures updated</text>`;
+  return SV('0 0 1000 262', g);
+}
+
+/* ---- before / after ---- */
+function sceneVictory(step){
+  let g = `<text class="t-lbl" x="20" y="47" style="font-size:20px;fill:var(--flame-ink)">BEFORE &middot; Seq Scan</text>
+    <rect x="240" y="20" width="700" height="40" fill="var(--flame)" stroke="var(--ink)" stroke-width="2" class="sv-growx nofx"/>
+    <text class="t-serif" x="930" y="50" text-anchor="end" style="font-size:24px;fill:var(--on-flame)">2,140 ms</text>`;
+  if(step >= 1) g += `<g class="sv-rise"><text class="t-lbl" x="20" y="117" style="font-size:20px;fill:var(--leaf)">AFTER &middot; Index Only Scan</text>
+    <rect x="240" y="90" width="3" height="40" fill="var(--leaf)" stroke="var(--ink)" stroke-width="2" class="nofx"/>
+    <text class="t-serif" x="256" y="120" style="font-size:24px;fill:var(--leaf)">3.2 ms</text></g>`;
+  if(step >= 2) g += `<text class="t-big sv-pop" x="600" y="126" style="fill:var(--ink)">~670&times; less time</text>`;
+  return SV('0 0 1000 150', g);
+}
+
+</script>
+<script>
+
+/* =====================================================================
+   Deck — Query-Level Optimization in PostgreSQL
+   Content follows the lecture deck; each slide adds an animated scene.
+   ===================================================================== */
+const card = (k,t,p,cls='',ico='') =>
+  `<div class="card ${cls}">${ico?`<span class="ico">${ico}</span>`:''}
+     <h4>${k}</h4><h3>${t}</h3><p>${p}</p></div>`;
+
+/* a checkpoint: question i appears at step 2i, its answer at step 2i+1 */
+const quiz = (qs, st, cols=1) => `<div class="qa" style="grid-template-columns:repeat(${cols},minmax(0,1fr))">
+  ${qs.map((q,i) => st >= 2*i ? `<div class="q pop"><h3><span>Q${i+1}</span>${q[0]}</h3>
+     ${st >= 2*i+1 ? `<p class="pop">&rarr; ${q[1]}</p>` : `<p class="wait">…</p>`}</div>` : '').join('')}</div>`;
+const quizSteps = (qs, intro) => qs.flatMap((q,i) => [
+  {note:(i === 0 && intro ? intro + ' ' : '') + 'Read it out and wait for hands. Do not answer it yourself.'},
+  {note:q[2] || ('Answer: ' + q[1].replace(/<[^>]+>/g,''))}]);
+
+/* =====================================================================
+   The story spine. Every slide belongs to a chapter, and each chapter
+   opens with the segment card from the lecture.
+   ===================================================================== */
+const CHAPTERS = [
+ {n:1, t:'The dashboard that died',        of:['title','problem','scenario','model','rows','path']},
+ {n:2, t:'Meet the planner',               of:['levels','planner','samerows']},
+ {n:3, t:'Reading the execution plan',     of:['explain','node','smells','vocab','before','quiz2']},
+ {n:4, t:'The free wins',                  of:['t1','t2','t3','t4','t5','t6','quiz3']},
+ {n:5, t:'Common Table Expressions',       of:['cteneed','ctedef','inline','trap','quiz4']},
+ {n:6, t:'Indexing: give it a shortcut',   of:['book','types','btree','hash','gin','gist','brin','composite','shapes',
+                                               'whenidx','cost','syntax','which','victory','quiz5']},
+ {n:7, t:'The reusable framework',         of:['workflow','homework','thanks']}
+];
+
+const OPENERS = {
+ 2:{when:'Segment 1 · 6 minutes',
+    problem:'We never told the database to scan the whole table.',
+    detail:'The query planner chose that. Query optimization is the same destination by a faster road — and the planner is the one picking the road.',
+    next:'So before we change anything, let us meet the planner and the number it minimizes.'},
+ 3:{when:'Segment 2 · 15 minutes',
+    problem:'You cannot optimize what you cannot see.',
+    detail:'EXPLAIN is the X-ray. It prints the plan the planner chose, node by node, with its estimates — and with ANALYZE, with what actually happened.',
+    next:'From here on, every change is a hypothesis you can verify.'},
+ 4:{when:'Segment 3 · 15 minutes',
+    problem:'Some of the slowness is self-inflicted — in how the SQL is written.',
+    detail:'Six rewrites that cost nothing: no schema change, no index. Each one leaves a fingerprint in the plan.',
+    next:'Six tricks, roughly two minutes each.'},
+ 5:{when:'Segment 4 · 10 minutes',
+    problem:'The real dashboard query is a nest of subqueries nobody wants to touch.',
+    detail:'A Common Table Expression gives a sub-result a name, so you can reference it like a temporary table — for readability, and to compute an expensive block once.',
+    next:'And one trap, where naming it makes things far worse.'},
+ 6:{when:'Segment 5 · 17 minutes',
+    problem:'No rewrite removes that last Seq Scan.',
+    detail:'The database simply has no shortcut to "this month\'s orders for this customer." It has to read everything to find them.',
+    next:'Time to give it one.'},
+ 7:{when:'Wrap-up',
+    problem:'You did not make the database faster.',
+    detail:'You stopped making it do unnecessary work — and then you gave it a shortcut.',
+    next:'Here is that, as a workflow you can reuse on any slow query.'}
+};
+
+function chapterBody(ch, st){
+  const o = OPENERS[ch.n] || {};
+  return `<div class="chapter">
+    <div class="ch-rail"><span class="ch-num">${String(ch.n).padStart(2,'0')}</span>
+      <span class="ch-of">Chapter ${ch.n} of ${CHAPTERS.length}</span></div>
+    <div class="ch-body">
+      <div class="ch-when">${o.when||''}</div>
+      <h2 class="ch-title">${ch.t}</h2>
+      ${st>=1?`<p class="ch-problem pop">${o.problem||''}</p>`:''}
+      ${st>=2?`<p class="ch-detail pop">${o.detail||''}</p>`:''}
+      ${st>=3?`<p class="ch-next pop">${o.next||''}</p>`:''}
+    </div></div>`;
+}
+
+const Q2 = [
+  ['<code>cost=0.00..358458.00</code> — what do the two numbers mean?', 'startup cost .. total cost, in the planner\'s arbitrary units.'],
+  ['Plan says <code>rows=100</code>, actual <code>rows=2000000</code>. First suspect?', 'stale statistics → run <code>ANALYZE</code>.'],
+  ['You see <code>Rows Removed by Filter: 19901789</code>. Good or bad, and the fix?', 'bad — filter earlier, or add an index.']];
+const Q3 = [
+  ['<code>WHERE UPPER(name)=\'AMIT\'</code> shows a Seq Scan, though an index on name exists. Why, and two fixes?',
+   'a function on the column. Leave the column bare, or build an expression index on <code>UPPER(name)</code>.'],
+  ['You spot <code>loops=2000000</code> on a Nested Loop\'s inner side. Cause?', 'a correlated subquery, re-run once per outer row.'],
+  ['Which trick changes the result set, not just the speed?', 'none should — that is the point. (Column pruning changes the columns shown, never the rows.)']];
+const Q4 = [
+  ['Default in PostgreSQL 14: inlined or materialized?', 'inlined.'],
+  ['When is forcing <code>MATERIALIZED</code> clearly right?', 'an expensive block that is referenced more than once.'],
+  ['You materialized a whole table and now an id lookup is slow. Why?', 'the filter cannot push into the materialized block.']];
+const Q5 = [
+  ['Composite <code>(customer_id, order_date)</code> — does <code>WHERE order_date &gt; x</code> use it?', 'No — the leftmost-prefix rule.'],
+  ['Index type for a <code>tags text[]</code> column?', 'GIN.'],
+  ['Why <code>CREATE INDEX CONCURRENTLY</code> in production?', 'it does not lock the table against writes while it builds.'],
+  ['What plan node proves the covering index worked?', 'Index Only Scan.']];
+
+const DECK = [
+/* ================= 1 · the dashboard that died ================= */
+{ id:'title', kick:'make the slow query fast — without changing the data', eyebrow:'PostgreSQL · Query level', title:'Query-Level Optimization',
+  tag:'intro', steps:[
+  {note:'Open on the promise, not the technique. Everyone here has written SQL that was fine on a laptop. Today we take one query that died in production and make it fast — and we are not allowed to change a single row of data.'},
+  {note:'This is the whole lecture in one line. Thirty seconds to milliseconds, and the result set never changes. Hold them to that rule all session.'}],
+  body:(st)=>`<div class="hero">
+    <div class="by">in PostgreSQL</div>
+    <div class="big">Make the <em>slow query</em><br>fast.</div>
+    <div class="sub">Without changing the data. Same rows out, same result &mdash; we only change how we ask for them.</div>
+    ${st>=1?`<div class="race pop"><span class="from">30,000 ms</span><span class="arr">&rarr;</span><span class="to">milliseconds</span></div>`:''}
+    <div class="by">by <b>Adhyyan Awasthi</b></div>
+  </div>` },
+
+{ id:'problem', kick:'it worked on my laptop', eyebrow:'The problem', title:'The dashboard just stopped loading',
+  tag:'hook', steps:[
+  {note:'The report the marketing team lives on. Watch the spinner — that is what they see every morning.'},
+  {note:'Thirty seconds and more, and sometimes it never returns at all. The dashboard gives up at 30,000 milliseconds.'},
+  {note:'And the classic line: it worked on my laptop with 500 test rows. In production there are twenty million orders.'},
+  {note:'The important sentence: the SQL never changed. The data got big — and the database is now doing expensive work we cannot see. Today is about seeing it.'}],
+  body:(st)=>`<div class="stage-row">${sceneTimeout(st)}</div>
+    ${st>=2?`<p class="quote pop">"It worked on my laptop with 500 test rows. In production it dies."</p>`:''}
+    ${st>=3?`<p class="lede pop">The SQL never changed. <b>The data got big</b> &mdash; and the database is now doing expensive work we can't see.</p>`:''}` },
+
+{ id:'scenario', kick:'the running scenario', eyebrow:'ShopEasy & the Black Friday slowdown', title:'Make it fast. Don\'t change the data.',
+  tag:'story', steps:[
+  {note:'Set the scene. You just joined ShopEasy, a fast-growing online store, as its database engineer. It is Black Friday, and the "Top Customers This Month" dashboard is timing out.'},
+  {note:'Your manager drops exactly one line in the chat and walks away. Read it out.'},
+  {note:'That line is the rule for the whole session. Same rows out, same result. We only change how we ask — the SQL text, and the indexes.'},
+  {note:'And the goal, stated as a number: from 30,000 milliseconds to milliseconds.'}],
+  body:(st)=>`<div class="two wl">
+    <div class="stack">
+      <p class="lede">You just joined <b>ShopEasy</b>, a fast-growing online store, as its <b>database engineer</b>.
+        It's Black Friday. The <b>"Top Customers This Month"</b> dashboard is timing out.</p>
+      ${st>=1?`<div class="chat pop"><span class="av">M</span><div class="bub"><div class="who">Manager · 11:58</div>
+        <div class="msg">"Make it fast. Don't change the data."</div></div></div>`:''}
+    </div>
+    <div class="stack">
+      ${st>=2?`<div class="pop">${card('The one rule','Same rows out. Same result.','We only change <b>how we ask</b> for them — the SQL text and the indexes.','good',ico('shield'))}</div>`:''}
+      ${st>=3?`<div class="race pop" style="font-size:1.5rem"><span class="from">30,000 ms</span><span class="arr">&rarr;</span><span class="to">milliseconds</span></div>`:''}
+    </div></div>` },
+
+{ id:'model', kick:'and the sizes matter', eyebrow:'The data model', title:'Four tables',
+  tag:'data', steps:[
+  {note:'Two million customers.'},
+  {note:'Twenty million orders — this is the table our dashboard reads.'},
+  {note:'Eighty million order items.'},
+  {note:'And fifty thousand products — a sliver next to the others.'},
+  {note:'The big row counts are deliberate. They make a full-table scan visibly catastrophic, and that is what motivates everything that follows.'}],
+  body:(st)=>`<div class="stage-row">${sceneTables(st)}</div>
+    ${st>=4?`<p class="lede pop">The big row counts are deliberate &mdash; they make a <b>full-table scan</b> visibly catastrophic, which is what motivates everything that follows.</p>`:''}` },
+
+{ id:'rows', kick:'the rows we follow all lecture', eyebrow:'The data model', title:'Meet Aarav, Diya and Rohan',
+  tag:'data', steps:[
+  {note:'Three real-looking customers. Customer 1024, Aarav from Pune, is the one we will keep querying.'},
+  {note:'Their orders. Notice 1024 has two of them — Black Friday week.'},
+  {note:'Order items and products close the loop: what was in each order, and what each product is.'}],
+  body:(st)=>{
+    const t = (name, head, rows, hl=[]) => `<div class="dt pop"><h5>${name}</h5><table><tr>${head.map(h=>`<th>${h}</th>`).join('')}</tr>
+      ${rows.map((r,i)=>`<tr class="${hl.includes(i)?'hl':''}">${r.map(c=>`<td>${c}</td>`).join('')}</tr>`).join('')}</table></div>`;
+    return `<div class="dts">
+      ${t('customers',['customer_id','name','city','created_at'],[['1024','Aarav Sharma','Pune','2023-04-12'],['2087','Diya Menon','Kochi','2022-11-03'],['3391','Rohan Iyer','Delhi','2024-01-27']],[0])}
+      ${st>=1?t('orders',['order_id','cust_id','order_date','status','total'],[['880231','1024','2025-11-28','delivered','₹7,499'],['880232','2087','2025-11-28','shipped','₹12,250'],['880233','1024','2025-11-29','pending','₹3,199']],[0,2]):''}
+      ${st>=2?t('order_items',['item_id','order_id','product_id','qty','unit_price'],[['50011','880231','7712','2','₹1,499'],['50012','880231','4410','1','₹4,501'],['50013','880232','9930','3','₹4,083']]):''}
+      ${st>=2?t('products',['product_id','name','category','price','stock'],[['7712','Wireless Earbuds Pro','Electronics','₹1,499','320'],['4410','Cotton Bedsheet Set','Home','₹4,501','88'],['9930','Steel Water Bottle','Kitchen','₹4,083','540']]):''}
+    </div>`; } },
+
+{ id:'path', kick:'72 minutes, one layer at a time', eyebrow:'Today\'s path', title:'We peel the problem',
+  tag:'roadmap', steps:[
+  {note:'One — read the plan. Why is it slow? EXPLAIN shows what the database actually does.'},
+  {note:'Two — fix the query text. Free wins: remove the self-inflicted waste in how the SQL is written.'},
+  {note:'Three — restructure with CTEs. Tame the messy reporting query: readable, and compute expensive things once.'},
+  {note:'Four — add the right index. Give the planner a shortcut, and the dashboard returns in milliseconds.'},
+  {note:'This is a live walkthrough: one running query, with its EXPLAIN output on screen at every stage.'}],
+  body:(st)=>`<div class="stage-row">${scenePath(st)}</div>
+    ${st>=4?tell('Live','One running query, with its <b>EXPLAIN</b> output on screen at every stage.','note'):''}` },
+
+/* ================= 2 · meet the planner ================= */
+{ id:'levels', kick:'where today sits', eyebrow:'Three levels of optimization', title:'Same destination, a faster road',
+  tag:'concept', steps:[
+  {note:'Hardware and configuration: more RAM, tuning work_mem — throw resources at it. Not today.'},
+  {note:'Query level: rewrite the SQL and add indexes so the same result comes out with far less work. That is today.'},
+  {note:'Schema and design: normalization, partitioning — change the shape of the data itself. Already covered.'},
+  {note:'The analogy. Google Maps did not move your house. It found a faster road. Query optimization finds a faster road to the same rows.'}],
+  body:(st)=>{
+    const L = [['Hardware / Config','More RAM, tuning <code>work_mem</code> — throw resources at it.','not today'],
+               ['Query level','Rewrite the SQL and add indexes so the same result is produced with far less work.','&larr; today'],
+               ['Schema / Design','Normalization, partitioning — change the shape of the data itself.','already covered']];
+    return `<div class="rows" style="--cols:10rem 1fr 8rem">
+      ${L.map((l,i)=> st>=i ? `<div class="row pop ${i===1?'hot':(st>=1?'dim':'')}"><b>${l[0]}</b><span>${l[1]}</span><span class="ex">${l[2]}</span></div>`:'').join('')}</div>
+      ${st>=3?`<div class="stage-row pop">${sceneRoad(1)}</div>`:''}`; } },
+
+{ id:'planner', kick:'the planner & the cost it minimizes', eyebrow:'Define', title:'PostgreSQL does not run your SQL literally',
+  tag:'concept', steps:[
+  {note:'You hand over SQL — a description of what you want, not how to get it.'},
+  {note:'The planner rewrites it into an execution plan: a tree of physical operations — scans, joins, sorts.'},
+  {note:'It considers the candidate routes and estimates the cost of each. Cost is an internal unit — roughly estimated disk page fetches plus CPU work. The units are arbitrary but comparable.'},
+  {note:'It picks the one it estimates cheapest. Say this out loud: you do not optimize by trying harder to write clever SQL blindly. You look at the plan it chose, find the expensive step, and remove the reason it is expensive.'}],
+  body:(st)=>`<div class="stage-row">${scenePlanner(st)}</div>
+    ${st>=2&&st<3?tell('Cost','Roughly estimated disk page fetches + CPU work. Lower is better; the units are arbitrary but comparable.','note'):''}
+    ${st>=3?tell('Say it','Don\'t optimize by writing clever SQL blindly. Look at the plan, find the expensive step, remove the reason it\'s expensive.'):''}` },
+
+{ id:'samerows', kick:'example · orders over ₹5,000', eyebrow:'Example', title:'Same rows. Same speed?',
+  tag:'example', steps:[
+  {note:'Query A: SELECT star from orders where total is over five thousand.'},
+  {note:'Query B: the same filter, but only the two columns we actually show.'},
+  {note:'Same rows returned, minus a few columns. Same speed? No. Every row A reads is wider — more bytes, more I/O. We are about to see why, under the hood.'},
+  {note:'Checkpoint before we move on: what does the planner produce, and what does it minimize? An execution plan; estimated cost.'}],
+  body:(st)=>`<div class="pair">
+      <div><span class="verdict">Query A</span>${sql(`SELECT * FROM orders
+WHERE total_amount > 5000;`)}</div>
+      ${st>=1?`<div class="pop"><span class="verdict">Query B</span>${sql(`SELECT order_id, total_amount FROM orders
+WHERE total_amount > 5000;`)}</div>`:'<div></div>'}</div>
+    ${st>=2?`<div class="stage-row pop">${sceneWidth(1,'every column, every row','two columns — narrower rows')}</div>`:''}
+    ${st>=3?tell('Checkpoint','What does the planner produce, and what does it minimize? &rarr; <b>an execution plan; estimated cost.</b>','note'):''}` },
+
+/* ================= 3 · reading the plan ================= */
+{ id:'explain', kick:'estimate vs. reality', eyebrow:'Define · the commands', title:'EXPLAIN is the X-ray',
+  tag:'explain', steps:[
+  {note:'EXPLAIN is the planner\'s estimate. It is fast because it does not run the query — it shows the plan it would use.'},
+  {note:'EXPLAIN ANALYZE actually runs the query and reports real timings and real row counts, alongside the estimates.'},
+  {note:'EXPLAIN (ANALYZE, BUFFERS) also shows how many data pages came from cache versus disk.'},
+  {note:'The caveat, and say it twice. ANALYZE truly executes. Never run it on an UPDATE or DELETE unless it is wrapped in a transaction you roll back.'}],
+  body:(st)=>`<div class="cards" style="grid-template-columns:repeat(3,minmax(0,1fr))">
+      <div class="pop">${card('The estimate','EXPLAIN','Fast. Does <b>not</b> run the query — shows the plan it would use.','tl',ico('search'))}</div>
+      ${st>=1?`<div class="pop">${card('Estimate + reality','EXPLAIN ANALYZE','Actually runs the query; real timings and real row counts beside the estimates.','pp',ico('gauge'))}</div>`:''}
+      ${st>=2?`<div class="pop">${card('+ cache vs disk','(ANALYZE, BUFFERS)','Also shows how many data pages came from cache vs. were fetched from disk.','good',ico('db'))}</div>`:''}
+    </div>
+    ${st>=1?sql(`EXPLAIN ANALYZE SELECT * FROM orders WHERE total_amount > 5000;`):''}
+    ${st>=3?tell('Caveat','ANALYZE truly executes. Never run it on an <code>UPDATE</code> / <code>DELETE</code> unless wrapped in a transaction you roll back.','warn'):''}` },
+
+{ id:'node', kick:'how to read a node', eyebrow:'Define', title:'Anatomy of one plan node',
+  tag:'explain', steps:[
+  {note:'This is one node, exactly as EXPLAIN ANALYZE prints it. We will read it token by token.'},
+  {note:'Seq Scan — read the entire table, row by row. This is the smell.'},
+  {note:'cost, zero to 358,458 — startup cost, then total cost. Lower is better.'},
+  {note:'rows equals 95,000 — the planner\'s estimate of rows this node will emit.'},
+  {note:'width equals 24 — average bytes per row. Wider means more I/O, which is why SELECT star costs more.'},
+  {note:'actual time — real milliseconds, first row to last row. 2.1 seconds on this node alone.'},
+  {note:'rows equals 98,211, loops equals 1 — actual rows, and how many times the node ran. Compare with the estimate.'},
+  {note:'And the line that is often the whole diagnosis: Rows Removed by Filter. It read about twenty million rows and threw away 19.9 million.'}],
+  body:(st)=>{
+    const on = n => st === n ? 'on' : '';
+    const A = [
+      ['<code>Seq Scan</code> — read the <b>entire</b> table row by row. This is the smell.'],
+      ['<code>cost=0.00..358458</code> — startup .. total. Lower is better.'],
+      ['<code>rows=95000</code> — the planner\'s <b>estimate</b> of rows emitted.'],
+      ['<code>width=24</code> — avg bytes per row. Wider = more I/O.'],
+      ['<code>actual time=..2140.870</code> — real ms, first row .. last row.'],
+      ['<code>rows=98211 loops=1</code> — actual rows, and how many times it ran.'],
+      ['<code>Rows Removed by Filter</code> — read ~20M, threw away <b>19.9M</b>. Often the whole diagnosis.']];
+    return `<div class="two wl">
+      <pre class="plan"><span class="${on(1)}">Seq Scan</span> on orders
+  (<span class="${on(2)}">cost=0.00..358458.00</span> <span class="${on(3)}">rows=95000</span> <span class="${on(4)}">width=24</span>)
+  (<span class="${on(5)}">actual time=0.015..2140.870</span>
+   <span class="${on(6)}">rows=98211 loops=1</span>)
+  Filter: (total_amount &gt; 5000)
+  <span class="bad ${on(7)}">Rows Removed by Filter: 19901789</span></pre>
+      <div class="anno">${A.map((a,i)=> st>=i+1 ? `<div class="pop ${st===i+1?'on':''} ${i===6?'warn':''}">${a[0]}</div>`:'').join('')}</div>
+    </div>`; } },
+
+{ id:'smells', kick:'what to look for', eyebrow:'Define', title:'The plan-smell checklist',
+  tag:'explain', steps:[
+  {note:'Seq Scan on a big table when you wanted a few rows — that is an index candidate.'},
+  {note:'Estimated versus actual rows badly mismatched — estimate 100, actual two million. Stale statistics; fix with ANALYZE on the table.'},
+  {note:'Rows Removed by Filter is large — you are filtering too late, or too broadly.'},
+  {note:'Sort Method: external merge, Disk — the sort spilled to disk, which is slow. You want quicksort, Memory.'},
+  {note:'Nested Loop with a high loops count on a large inner table — possibly a bad join choice.'},
+  {note:'And the Execution Time at the bottom is your headline number. That is what you report.'}],
+  body:(st)=>{
+    const S = [
+      ['Smell','Seq Scan on a big table','…where you wanted a few rows &rarr; <b>index candidate</b>.','warn','search'],
+      ['Smell','Estimate ≠ actual','est 100 vs actual 2M &rarr; stale stats, fix with <code>ANALYZE tablename;</code>','warn','gauge'],
+      ['Smell','Rows Removed by Filter','large &rarr; filtering too late or too broadly.','warn','trash'],
+      ['Smell','external merge Disk','the sort spilled to disk (slow). Want <code>quicksort Memory</code>.','warn','db'],
+      ['Smell','Nested Loop, high loops=','…on a large inner table &rarr; possible bad join choice.','warn','route'],
+      ['Headline','Execution Time','at the bottom &mdash; your headline number.','good','clock']];
+    return `<div class="cards" style="grid-template-columns:repeat(3,minmax(0,1fr))">
+      ${S.map((s,i)=> st>=i ? `<div class="pop">${card(s[0],s[1],s[2],s[3],ico(s[4]))}</div>`:'').join('')}</div>`; } },
+
+{ id:'vocab', kick:'the words plans speak', eyebrow:'Define · vocabulary', title:'Scans and joins',
+  tag:'explain', steps:[
+  {note:'Scan types, slowest to fastest. Seq Scan reads the whole table.'},
+  {note:'Bitmap Index Scan — for a medium number of matches. It collects row locations from the index, then reads the pages in order.'},
+  {note:'Index Scan — jump via the index, then fetch each row from the table.'},
+  {note:'Index Only Scan — answered from the index alone, never touching the table. The fastest.'},
+  {note:'Join methods. Nested Loop for small sets or an indexed inner side; Hash Join for large unsorted sets; Merge Join when both inputs are already sorted. The planner picks the join from the shape and size of its inputs — and indexes change that shape.'}],
+  body:(st)=>{
+    const S = [['Seq Scan','read the whole table',100,'var(--flame)'],['Bitmap Index Scan','a medium number of matches',55,'var(--amber-2)'],
+               ['Index Scan','jump via index, then fetch rows',25,'var(--pencil)'],['Index Only Scan','answered from the index alone',8,'var(--leaf)']];
+    return `<div class="two">
+      <div class="rows" style="--cols:9rem 1fr 6rem">
+        ${S.map((s,i)=> st>=i ? `<div class="row pop"><b style="font-size:.8rem">${s[0]}</b><span>${s[1]}</span>
+          <span style="display:block;height:.6rem;width:${s[2]}%;background:${s[3]};border:2px solid var(--ink);border-radius:3px"></span></div>`:'').join('')}
+        <div class="verdict" style="color:var(--muted)">scan types &mdash; slow &rarr; fast (bar = work)</div>
+      </div>
+      ${st>=4?`<div class="stack pop">
+        ${card('Join','Nested Loop','Small sets, or an indexed inner side.','tl')}
+        ${card('Join','Hash Join','Large, unsorted sets.','pp')}
+        ${card('Join','Merge Join','Both inputs already sorted.','good')}
+        <p class="lede" style="font-size:.72rem">The planner picks the join from the shape and size of its inputs &mdash; <b>indexes change that shape</b>.</p>
+      </div>`:'<div></div>'}</div>`; } },
+
+{ id:'before', kick:'apply · our scenario', eyebrow:'Our "before" picture', title:'Every row read. Almost all thrown away.',
+  tag:'apply', steps:[
+  {note:'Here is the query and the plan. Run EXPLAIN ANALYZE on the orders filter.'},
+  {note:'Seq Scan on orders. The database reads every row of the twenty-million-row table. Watch the scan head — the amber squares are the only rows it keeps.'},
+  {note:'Rows removed: 19,901,789. Nearly twenty million rows read and thrown away.'},
+  {note:'Execution time: 2,140 milliseconds. Hold this plan in mind. Every technique today is judged by one question: does this Seq Scan disappear, and does this time drop?'}],
+  body:(st)=>`${sql(`EXPLAIN ANALYZE SELECT * FROM orders WHERE total_amount > 5000;`)}
+    <div class="stage-row">${sceneSeqScan(st)}</div>
+    ${st>=2?`<div class="stats pop">
+      <div class="stat warn"><div class="k">Node</div><div class="v" style="font-size:1.4rem">Seq Scan on orders</div><div class="s">reads every row of 20M</div></div>
+      <div class="stat warn"><div class="k">Rows removed</div><div class="v">19,901,789</div><div class="s">read and thrown away</div></div>
+      ${st>=3?`<div class="stat warn pop"><div class="k">Execution time</div><div class="v">2,140 ms</div><div class="s">our headline number</div></div>`:'<div></div>'}
+    </div>`:''}
+    ${st>=3?tell('The test','Does this <b>Seq Scan</b> disappear, and does this <b>time</b> drop?','note'):''}` },
+
+{ id:'quiz2', kick:'checkpoint · segment 2', eyebrow:'Check yourself', title:'Can you read the disease?',
+  tag:'checkpoint', steps:quizSteps(Q2), body:(st)=>quiz(Q2, st) },
+
+/* ================= 4 · the free wins ================= */
+{ id:'t1', kick:'trick 1 · select only the columns you need', eyebrow:'Trick 1 of 6', title:'Stop shipping columns you never show',
+  tag:'trick', steps:[
+  {note:'Why: fewer, narrower columns means a smaller width and less I/O. And it is a precondition for the fast Index Only Scan later — an index cannot cover SELECT star.'},
+  {note:'The fix: ask for what the dashboard shows. customer_id and name.'},
+  {note:'The plan tell: the width value drops — here from 210 bytes a row to 32.'}],
+  body:(st)=>`<p class="lede"><b>Why:</b> fewer, narrower columns = smaller <code>width</code> = less I/O &mdash; and it's a precondition for the fast <b>Index-Only Scan</b> later.</p>
+    <div class="pair">
+      <div><span class="verdict bad">&#10005; Wider than needed</span>${sql(`SELECT [[!*]] FROM customers
+WHERE city = 'Pune';   -- width=210`)}</div>
+      ${st>=1?`<div class="pop"><span class="verdict good">&check; Only what you show</span>${sql(`SELECT [[customer_id, name]] FROM customers
+WHERE city = 'Pune';   -- width=32`)}</div>`:'<div></div>'}</div>
+    <div class="stage-row">${sceneWidth(st>=1?1:0,'width = 210','width = 32')}</div>
+    ${st>=2?tell('Plan tell','the <code>width=</code> value drops.'):''}` },
+
+{ id:'t2', kick:'trick 2 · keep filters sargable', eyebrow:'Trick 2 of 6', title:'Don\'t wrap an indexed column in a function',
+  tag:'trick', steps:[
+  {note:'Why: the index is built on the raw column, not on the function\'s output. Wrap the column in LOWER and the index cannot be used — the planner falls back to a Seq Scan.'},
+  {note:'Keep the column bare. Store emails lower-cased, compare the raw value.'},
+  {note:'Same trap with dates: casting order_date to text to use LIKE defeats the range.'},
+  {note:'Write it as a half-open range instead: greater-or-equal to January first, less than next January first.'},
+  {note:'Plan tell: a Seq Scan flips to an Index Scan once the column is left bare. And later today we will meet the other fix — an expression index on LOWER(email).'}],
+  body:(st)=>`<p class="lede"><b>Why:</b> the index is built on the <b>raw column</b>, not the function's output &mdash; so a function on the column forces a Seq Scan.</p>
+    <div class="pair">
+      <div><span class="verdict bad">&#10005; Function kills the index</span>${sql(`SELECT * FROM customers
+WHERE [[!LOWER(email)]] = 'amit@shop.com';`)}</div>
+      ${st>=1?`<div class="pop"><span class="verdict good">&check; Keep the column bare</span>${sql(`SELECT * FROM customers
+WHERE [[email]] = 'amit@shop.com';`)}</div>`:'<div></div>'}</div>
+    ${st>=2?`<div class="pair pop">
+      <div><span class="verdict bad">&#10005; Cast defeats the range</span>${sql(`WHERE [[!order_date::text]] LIKE '2025%';`)}</div>
+      ${st>=3?`<div class="pop"><span class="verdict good">&check; Range-friendly dates</span>${sql(`WHERE order_date >= '2025-01-01'
+  AND order_date <  '2026-01-01';`)}</div>`:'<div></div>'}</div>`:''}
+    ${st>=4?tell('Plan tell','a <b>Seq Scan</b> flips to an <b>Index Scan</b> once the column is left bare. (Or later: an expression index on <code>LOWER(email)</code>.)'):''}` },
+
+{ id:'t3', kick:'trick 3 · join / exists over correlated subqueries', eyebrow:'Trick 3 of 6', title:'Don\'t re-run the inner query per row',
+  tag:'trick', steps:[
+  {note:'The correlated subquery. For every one of two million customers, count their orders. The inner query runs once per outer row.'},
+  {note:'Rewrite as a JOIN with DISTINCT — one pass over each table.'},
+  {note:'Or, best when you only care whether something exists: EXISTS. It can stop at the first matching order.'},
+  {note:'Plan tell: a Nested Loop with a huge loops count becomes a single Hash Join. Watch the picture — two million trips become one build and one probe.'}],
+  body:(st)=>`<div class="pair" style="--n:3">
+      <div><span class="verdict bad">&#10005; Correlated subquery</span>${sql(`SELECT name FROM customers c
+WHERE ([[!SELECT COUNT(*)]]
+       [[!FROM orders o]]
+       [[!WHERE o.customer_id]]
+       [[!  = c.customer_id]]) > 0;`,'sm')}</div>
+      ${st>=1?`<div class="pop"><span class="verdict good">&check; JOIN</span>${sql(`SELECT DISTINCT c.name
+FROM customers c
+JOIN orders o
+  ON o.customer_id
+   = c.customer_id;`,'sm')}</div>`:'<div></div>'}
+      ${st>=2?`<div class="pop"><span class="verdict good">&check; EXISTS (best for existence)</span>${sql(`SELECT c.name FROM customers c
+WHERE [[EXISTS]] (
+  SELECT 1 FROM orders o
+  WHERE o.customer_id
+      = c.customer_id);`,'sm')}</div>`:'<div></div>'}</div>
+    ${st>=3?`<div class="stage-row pop">${sceneLoops(1)}</div>${tell('Plan tell','a <b>Nested Loop</b> with a huge <code>loops=</code> becomes a single <b>Hash Join</b>.')}`:''}` },
+
+{ id:'t4', kick:'trick 4 · rewrite OR into IN / UNION', eyebrow:'Trick 4 of 6', title:'Unblock the index the OR was hiding',
+  tag:'trick', steps:[
+  {note:'Why: an OR — especially across different columns — often defeats index use.'},
+  {note:'On the same column, IN says the same thing and hands the planner a list it can look up. Across different columns, split into a UNION of two indexable queries.'},
+  {note:'Plan tell: a Bitmap Index Scan appears instead of a Seq Scan.'}],
+  body:(st)=>`<p class="lede"><b>Why:</b> an <code>OR</code> across different columns often defeats index use.</p>
+    <div class="pair">
+      <div><span class="verdict bad">&#10005; OR</span>${sql(`SELECT * FROM orders
+WHERE status = 'shipped'
+   [[!OR]] status = 'delivered';`,'lg')}</div>
+      ${st>=1?`<div class="pop"><span class="verdict good">&check; IN</span>${sql(`SELECT * FROM orders
+WHERE status [[IN]] ('shipped', 'delivered');`,'lg')}</div>`:'<div></div>'}</div>
+    ${st>=1?tell('Different columns','split into a <code>UNION</code> of two queries, each of which can use its own index.','note'):''}
+    ${st>=2?tell('Plan tell','a <b>Bitmap Index Scan</b> appears instead of a Seq Scan.'):''}` },
+
+{ id:'t5', kick:'trick 5 · push LIMIT down · drop needless DISTINCT / ORDER BY', eyebrow:'Trick 5 of 6', title:'Don\'t sort millions to show twenty',
+  tag:'trick', steps:[
+  {note:'If you show twenty rows, do not sort and materialize millions. With a matching index on customer_id and order_date, the planner reads just the first twenty and stops early.'},
+  {note:'A needless DISTINCT can add a whole sort or hash-aggregate node. If the rows are already unique, remove it and the node disappears.'},
+  {note:'Plan tell: a Sort over millions shrinks or vanishes, and the top node\'s actual rows drops to twenty.'}],
+  body:(st)=>`<div class="two wl">
+      <div class="stack"><span class="verdict good">&check; Let the planner stop early</span>${sql(`SELECT order_id, total_amount
+FROM orders
+WHERE customer_id = 1024
+ORDER BY order_date DESC
+[[LIMIT 20]];`,'lg')}</div>
+      <div class="stack">
+        <div class="pop">${card('Why','Show 20, read 20','If you show 20 rows, don\'t sort and materialize millions. With a matching index the planner reads just the first 20.','good',ico('bolt'))}</div>
+        ${st>=1?`<div class="pop">${card('And','Drop needless DISTINCT','A needless <code>DISTINCT</code> can add a whole sort / hash-aggregate node. Remove it and the node disappears.','warn',ico('trash'))}</div>`:''}
+      </div></div>
+    ${st>=2?tell('Plan tell','a <b>Sort</b> over millions shrinks or vanishes; the top node\'s actual rows drops to <b>20</b>.'):''}` },
+
+{ id:'t6', kick:'trick 6 · keep statistics fresh', eyebrow:'Trick 6 of 6', title:'A good plan needs good estimates',
+  tag:'trick', steps:[
+  {note:'Why: the planner\'s choices are only as good as its row estimates. After a big data load — like Black Friday — the estimates go stale, and it picks bad plans. Here it thinks a hundred rows, and gets two million.'},
+  {note:'Run ANALYZE on the table, then re-run EXPLAIN. Often the plan changes on its own — no rewrite needed. Autovacuum usually does this for you, but do it by hand after a bulk load.'},
+  {note:'Plan tell: the gap between estimated and actual rows closes.'}],
+  body:(st)=>`<div class="two wl">
+      <div class="stage-row">${sceneStats(st)}</div>
+      <div class="stack">
+        ${sql(`ANALYZE orders;
+-- then re-run:
+EXPLAIN SELECT ...;`,'lg')}
+        ${st>=1?`<p class="lede pop" style="font-size:.78rem">Often the plan changes on its own &mdash; no rewrite needed. <b>autovacuum</b> usually does this, but do it by hand after a bulk load.</p>`:''}
+      </div></div>
+    ${st>=2?tell('Plan tell','the estimated-vs-actual rows gap closes.'):''}` },
+
+{ id:'quiz3', kick:'checkpoint · segment 3', eyebrow:'Check yourself', title:'Three sins in one query',
+  tag:'checkpoint', steps:quizSteps(Q3, 'Our dashboard query used SELECT star, a LOWER on email, and a correlated subquery — three of six sins at once.'),
+  body:(st)=>`${tell('Confession','Our dashboard query used <code>SELECT *</code>, a <code>LOWER()</code> on email, and a correlated subquery &mdash; three of six sins at once.','warn')}${quiz(Q3, st)}` },
+
+/* ================= 5 · CTEs ================= */
+{ id:'cteneed', kick:'need · the problem', eyebrow:'The dashboard query today', title:'Can you even find the bug?',
+  tag:'cte', steps:[
+  {note:'This is the real dashboard query. Give them ten seconds to read it.'},
+  {note:'The same SUM is computed twice — once to filter, once to display. For every customer.'},
+  {note:'Would you want to maintain it? We need to name a sub-result and reuse it.'}],
+  body:(st)=>{
+    const m = s => st>=1 ? `[[!${s}]]` : s;
+    return `<div class="two wl">${sql(`SELECT name, spent FROM (
+  SELECT c.name,
+    (${m('SELECT SUM(total_amount) FROM orders o')}
+     ${m('WHERE o.customer_id = c.customer_id')}
+     ${m("AND o.order_date >= date_trunc('month', now())")}) AS spent
+  FROM customers c
+  WHERE (${m('SELECT SUM(total_amount) FROM orders o')}
+         ${m('WHERE o.customer_id = c.customer_id')}
+         ${m("AND o.order_date >= date_trunc('month', now())")}) > 0
+) t
+ORDER BY spent DESC LIMIT 20;`)}
+      <div class="stack">
+        ${st>=1?`<div class="pop">${card('The bug','The same SUM, twice','Once to filter, once to display &mdash; per customer.','warn',ico('sigma'))}</div>`:''}
+        ${st>=2?`<p class="quote pop">We need to name a sub-result and reuse it.</p>`:''}
+      </div></div>`; } },
+
+{ id:'ctedef', kick:'define · syntax & shape', eyebrow:'Common Table Expressions', title:'The same query, named and readable',
+  tag:'cte', steps:[
+  {note:'WITH, a name, AS, and a query in brackets. That names a query block you can reference below — for that one statement only.'},
+  {note:'The aggregate is written once. SUM and COUNT per customer, for this month.'},
+  {note:'Then the main query reads like a sentence: join the totals to customers, and take the top twenty.'},
+  {note:'The intent now reads top to bottom. And one extra: WITH RECURSIVE handles hierarchies — category trees, org charts.'}],
+  body:(st)=>`<div class="two wl">${sql(`WITH [[customer_totals]] AS (
+  SELECT customer_id,
+         ${st>=1?'[[SUM(total_amount) AS spent]]':'SUM(total_amount) AS spent'},
+         COUNT(*) AS num_orders
+  FROM orders
+  WHERE order_date >= date_trunc('month', CURRENT_DATE)
+  GROUP BY customer_id
+)
+SELECT c.name, ct.spent, ct.num_orders
+FROM ${st>=2?'[[customer_totals ct]]':'customer_totals ct'}
+JOIN customers c ON c.customer_id = ct.customer_id
+ORDER BY ct.spent DESC LIMIT 20;`,'sm')}
+      <div class="stack">
+        <p class="lede" style="font-size:.8rem">A CTE (<code>WITH … AS (…)</code>) names a query block you can reference below, <b>for that one statement</b>.</p>
+        ${st>=1?`<p class="lede pop" style="font-size:.8rem">The aggregate is written <b>once</b>. The intent reads top to bottom.</p>`:''}
+        ${st>=3?tell('Also','<code>WITH RECURSIVE</code> handles hierarchies &mdash; category trees, org charts.','note'):''}
+      </div></div>
+    <div class="stage-row">${sceneCTEFlow(st)}</div>` },
+
+{ id:'inline', kick:'PostgreSQL 12+', eyebrow:'Define', title:'Inlined by default — you can override',
+  tag:'cte', steps:[
+  {note:'By default, a CTE is inlined — folded into the main query, so the planner can optimize across it. For example, it can push a filter down into the block.'},
+  {note:'AS MATERIALIZED: compute the block once, store the result, reuse it. Great when the block is expensive and referenced two or more times.'},
+  {note:'AS NOT MATERIALIZED: force inlining even when it is referenced several times, so the planner can push filters and joins inside.'},
+  {note:'Rule of thumb: inline for the planner\'s freedom; materialize only when an expensive block is genuinely reused.'}],
+  body:(st)=>`<p class="lede">By default a CTE is <b>inlined</b> &mdash; folded into the main query so the planner can optimize across it (e.g. push filters down).</p>
+    <div class="cards" style="grid-template-columns:1fr 1fr">
+      ${st>=1?`<div class="pop">${card('Compute once','AS MATERIALIZED','Compute the block <b>once</b>, store the result, reuse it. Great when the block is expensive and referenced 2+ times.','pp',ico('layers'))}</div>`:''}
+      ${st>=2?`<div class="pop">${card('Force inlining','AS NOT MATERIALIZED','Force inlining even when referenced multiple times, so the planner can push filters and joins inside.','tl',ico('route'))}</div>`:''}
+    </div>
+    ${st>=1?sql(`WITH customer_totals AS [[MATERIALIZED]] ( ... )   -- or: AS NOT MATERIALIZED`):''}
+    ${st>=3?tell('Rule of thumb','inline for the planner\'s freedom; materialize only when an expensive block is genuinely reused.'):''}` },
+
+{ id:'trap', kick:'evaluate · when CTEs hurt', eyebrow:'The materialization trap', title:'A wall the filter can\'t cross',
+  tag:'cte', steps:[
+  {note:'Materialize all of orders, then look up one id. The CTE computes all twenty million rows first, and the WHERE cannot push inside. Disaster — a CTE Scan over twenty million rows to return one.'},
+  {note:'Inline it and the filter pushes into the block, and it returns one row through the primary-key index.'},
+  {note:'History worth knowing: before PostgreSQL 12, every CTE was an optimization fence — an easy way to slow things down by accident.'}],
+  body:(st)=>`${sql(`WITH all_orders AS [[!MATERIALIZED]] (SELECT * FROM orders)   -- computes ALL 20M rows
+SELECT * FROM all_orders WHERE order_id = 42;                -- filter can't push in`)}
+    <div class="stage-row">${sceneTrap(st)}</div>
+    ${st>=2?tell('History','On PostgreSQL &lt; 12 every CTE was an <b>"optimization fence"</b> &mdash; an easy way to accidentally slow things down.','warn'):''}` },
+
+{ id:'quiz4', kick:'checkpoint · segment 4', eyebrow:'Check yourself', title:'Inline, or materialize?',
+  tag:'checkpoint', steps:quizSteps(Q4, 'Our customer_totals CTE is referenced once, so it inlines cleanly — readability at no cost.'),
+  body:(st)=>`${tell('Our query','<code>customer_totals</code> is referenced once &rarr; it inlines cleanly. Readability at no cost.')}${quiz(Q4, st)}` },
+
+/* ================= 6 · indexing ================= */
+{ id:'book', kick:'need · the idea', eyebrow:'Indexing', title:'Like the index at the back of a book',
+  tag:'index', steps:[
+  {note:'To find every mention of photosynthesis without an index, you read all 900 pages. That is a Seq Scan.'},
+  {note:'With the index, you flip to the entry and jump straight to the right pages. That is an Index Scan. The database keeps a sorted, quick-lookup structure so it can find rows without reading the whole table.'}],
+  body:(st)=>`<div class="stage-row">${sceneBook(st)}</div>
+    ${st>=1?`<p class="lede pop">The database keeps a <b>sorted, quick-lookup structure</b> so it can find rows without reading the whole table.</p>`:''}` },
+
+{ id:'types', kick:'5.1 · types by access method', eyebrow:'Five structures', title:'Mostly you want B-tree',
+  tag:'index', steps:[
+  {note:'B-tree: equality and range — equals, less than, greater than, BETWEEN, ORDER BY. The default, and about ninety percent of the indexes you will ever create.'},
+  {note:'Hash: equality only. Rarely worth it over a B-tree.'},
+  {note:'GIN: many values per row — jsonb, arrays, full-text search.'},
+  {note:'GiST: geometric and nearest-neighbour — maps, ranges, "stores near me".'},
+  {note:'BRIN: a tiny index for huge, naturally ordered tables — append-only time series. We will open each one up next.'}],
+  body:(st)=>{
+    const T = [['B-tree','Equality & range (<code>=, &lt;, &gt;, BETWEEN, ORDER BY</code>). The default &mdash; ~90% of indexes.','order_date, total_amount, FKs'],
+               ['Hash','Equality only (<code>=</code>). Rarely worth it over B-tree.','pure lookups'],
+               ['GIN','Many values per row: jsonb, arrays, full-text search.','tags text[], descriptions'],
+               ['GiST','Geometric & nearest-neighbor (maps, ranges).','"stores near me"'],
+               ['BRIN','Tiny index for huge, naturally-ordered tables.','order_date on an 80M log']];
+    return `<div class="rows" style="--cols:5.5rem 1fr 11rem">
+      ${T.map((t,i)=> st>=i ? `<div class="row pop ${i===0?'hot':''}"><b>${t[0]}</b><span>${t[1]}</span><span class="ex">${t[2]}</span></div>`:'').join('')}</div>`; } },
+
+{ id:'btree', kick:'how it works · B-tree', eyebrow:'A sorted, balanced tree', title:'Root, branch, leaf',
+  tag:'index', steps:[
+  {note:'Keys stay sorted across a multi-level tree, and every leaf sits at the same depth. That is the balanced part.'},
+  {note:'A lookup walks root, branch, leaf, comparing at each step. Find 70: it is between 40 and 80, so the middle branch; then the leaf. That is O(log n) — a few page reads even over twenty million rows.'},
+  {note:'The leaves are linked in order, so a range just walks the chain. That is why a B-tree serves equals, less than, greater than, BETWEEN and ORDER BY.'},
+  {note:'In SQL: an index on order_date serves the whole month of November as one walk along the leaves.'}],
+  body:(st)=>`<div class="stage-row">${sceneBtree(st)}</div>
+    ${st>=3?sql(`CREATE INDEX ON orders (order_date);
+-- serves WHERE order_date BETWEEN '2025-11-01' AND '2025-11-30'`):''}` },
+
+{ id:'hash', kick:'how it works · hash', eyebrow:'One jump straight to the bucket', title:'Hash index',
+  tag:'index', steps:[
+  {note:'The key goes in on the left — a session token.'},
+  {note:'It runs through a hash function to get a bucket number, and the database searches only that bucket. Roughly O(1) for equality — no tree levels to walk.'},
+  {note:'But it stores no order. So it cannot help less-than, greater-than, BETWEEN, ORDER BY, or a prefix LIKE. A B-tree usually wins, because it does equality and more.'}],
+  body:(st)=>`<div class="stage-row">${sceneHash(st)}</div>
+    ${st>=2?sql(`CREATE INDEX ON sessions USING HASH (session_token);
+-- equality only: WHERE session_token = 'a9f3c...'`):''}` },
+
+{ id:'gin', kick:'how it works · GIN · inverted index', eyebrow:'One entry per value, pointing to rows', title:'GIN',
+  tag:'index', steps:[
+  {note:'A table normally stores row to values: row 88 has the tags sale and new.'},
+  {note:'An inverted index flips it: value to the rows that contain it — like the index of a book. Built for many values per row: arrays, jsonb, full-text tsvector.'},
+  {note:'A search for one element jumps straight to that value\'s posting list. Tags contains sale: read one list — rows 12, 88 and 140.'}],
+  body:(st)=>`<div class="stage-row">${sceneGin(st)}</div>
+    ${st>=2?sql(`CREATE INDEX ON products USING GIN (tags);   -- WHERE tags @> '{sale}'`):''}` },
+
+{ id:'gist', kick:'how it works · GiST', eyebrow:'A tree of bounding boxes', title:'GiST',
+  tag:'index', steps:[
+  {note:'A balanced tree where each node stores a predicate — a bounding box — that contains all of its children.'},
+  {note:'Search descends only into boxes that could match. You are inside box B, so all of A — and everything under it — is pruned at once.'},
+  {note:'Then B1. It handles overlap, containment and nearest-neighbour: maps and GPS, range types, the "closest to me" query.'}],
+  body:(st)=>`<div class="stage-row">${sceneGist(st)}</div>
+    ${st>=2?sql(`CREATE INDEX ON stores USING GIST (location);
+-- ORDER BY location <-> point(72.8, 19.0) LIMIT 5`):''}` },
+
+{ id:'brin', kick:'how it works · BRIN · block range index', eyebrow:'A min/max summary per block range', title:'BRIN',
+  tag:'index', steps:[
+  {note:'BRIN stores only the minimum and maximum for each range of physical blocks. Our query wants created_at from November first.'},
+  {note:'Blocks 1 to 64 hold September. The max is below November — skip.'},
+  {note:'Blocks 65 to 128 hold October — skip.'},
+  {note:'Blocks 129 to 192 hold November — scan. The whole index is tiny, often kilobytes for a multi-gigabyte table. The catch: it only works when the physical order correlates with the column — append-only, naturally ordered time series.'}],
+  body:(st)=>`<div class="stage-row">${sceneBrin(st)}</div>
+    ${st>=3?`${tell('Only when','physical order correlates with the column &mdash; append-only, naturally-ordered time-series.','warn')}
+      ${sql(`CREATE INDEX ON events USING BRIN (created_at);   -- huge append-only log, ordered by time`)}`:''}` },
+
+{ id:'composite', kick:'5.1 · composite indexes', eyebrow:'Two columns, one index', title:'The leftmost-prefix rule',
+  tag:'index', steps:[
+  {note:'A composite index on customer_id, then order_date. Think of a phone book: sorted by surname, then first name.'},
+  {note:'WHERE customer_id = 1024 — uses it. All of 1024\'s entries sit together.'},
+  {note:'customer_id = 1024 AND order_date after November first — uses it. A slice of that same block.'},
+  {note:'order_date alone skips the leftmost column. The matching dates are scattered across every customer — like finding everyone named Riya in a phone book sorted by surname. The rule for column order: equality columns first, range and sort columns last.'}],
+  body:(st)=>`${sql(`CREATE INDEX ON orders (customer_id, order_date);`,'lg')}
+    <div class="stage-row">${sceneComposite(st)}</div>
+    ${st>=3?tell('Column order','equality columns first, range / sort columns last.','note'):''}` },
+
+{ id:'shapes', kick:'5.1 · special shapes', eyebrow:'Four shapes worth knowing', title:'Unique, partial, expression, covering',
+  tag:'index', steps:[
+  {note:'Unique: enforces uniqueness and speeds lookups — an email column, for example.'},
+  {note:'Partial: indexes only the rows that match a condition. Only pending orders — smaller and faster.'},
+  {note:'Expression: indexes an expression. This is the fix for the LOWER trap from trick 2.'},
+  {note:'Covering, with INCLUDE: carries extra columns in the index so the query is answered from the index alone — an Index Only Scan.'}],
+  body:(st)=>{
+    const S = [['Unique','Enforces uniqueness & speeds lookups — e.g. email.',`CREATE UNIQUE INDEX ON customers (email);`,'tl'],
+               ['Partial','Indexes only rows matching a condition — smaller & faster.',`CREATE INDEX ON orders (order_date)
+WHERE status = 'pending';`,'pp'],
+               ['Expression','Indexes an expression — fixes the LOWER() trap.',`CREATE INDEX ON customers (LOWER(email));`,'good'],
+               ['Covering (INCLUDE)','Carries extra columns so the query is answered from the index alone → Index-Only Scan.',`CREATE INDEX ON orders (customer_id)
+INCLUDE (total_amount);`,'good']];
+    return `<div class="cards" style="grid-template-columns:1fr 1fr">
+      ${S.map((s,i)=> st>=i ? `<div class="pop"><div class="card ${s[3]}"><h4>Shape ${i+1}</h4><h3>${s[0]}</h3><p>${s[1]}</p>
+        <div style="margin-top:.35rem">${sql(s[2],'sm')}</div></div></div>`:'').join('')}</div>`; } },
+
+{ id:'whenidx', kick:'5.2 · when to use them', eyebrow:'Index these', title:'— and verify the plan',
+  tag:'index', steps:[
+  {note:'A selective WHERE filter — one that returns a small fraction of the table. Selectivity is everything: status, where 95 percent is delivered, is nearly useless; email, which is unique, is ideal.'},
+  {note:'Join keys — foreign keys like orders.customer_id and order_items.order_id. A very common miss: PostgreSQL does not index foreign keys for you.'},
+  {note:'ORDER BY and GROUP BY columns — an index supplies pre-sorted rows and deletes a Sort node.'},
+  {note:'And always verify. After creating it, re-run EXPLAIN. The node should change to an Index, Index Only or Bitmap scan and the time should drop — or the planner correctly ignored it.'}],
+  body:(st)=>`<div class="cards" style="grid-template-columns:repeat(3,minmax(0,1fr))">
+      <div class="pop">${card('Selective WHERE','Small fraction','Selectivity is everything: <code>status</code> (95% delivered) is nearly useless; <code>email</code> (unique) is ideal.','good',ico('search'))}</div>
+      ${st>=1?`<div class="pop">${card('Join keys','Foreign keys','<code>orders.customer_id</code>, <code>order_items.order_id</code>. A very common miss.','tl',ico('route'))}</div>`:''}
+      ${st>=2?`<div class="pop">${card('ORDER BY / GROUP BY','Pre-sorted rows','An index supplies rows already in order and deletes a Sort node.','pp',ico('layers'))}</div>`:''}
+    </div>
+    ${st>=3?tell('Always verify','after creating, <b>re-EXPLAIN</b>. The node should change to Index / Index-Only / Bitmap Scan and time should drop &mdash; or the planner correctly ignored it.','note'):''}` },
+
+{ id:'cost', kick:'5.2 · evaluate the cost', eyebrow:'Indexes are not free', title:'Index for your reads, pay on every write',
+  tag:'index', steps:[
+  {note:'Every INSERT, UPDATE and DELETE must also update every index on the table — so writes get slower.'},
+  {note:'Here one row written means five structures updated. Indexes also consume disk and RAM cache, and redundant or unused ones are pure overhead.'},
+  {note:'Rule of thumb: index the columns you filter and join on constantly — not every column just in case.'},
+  {note:'Mini-checkpoint. An index on status, with four evenly spread values, still shows a Seq Scan. Bug, or correct?'},
+  {note:'Correct. Low selectivity — reading a quarter of the table through an index is slower than just scanning it. If one status is rare, consider a partial index.'}],
+  body:(st)=>`<div class="stage-row">${sceneWriteCost(st)}</div>
+    ${st>=1?`<div class="cards pop" style="grid-template-columns:1fr 1fr">
+      ${card('Cost','Slower writes','Every <code>INSERT</code> / <code>UPDATE</code> / <code>DELETE</code> must also update the index.','warn')}
+      ${card('Cost','Disk & RAM','Redundant / unused indexes are pure overhead.','warn')}</div>`:''}
+    ${st>=2?tell('Rule of thumb','index the columns you filter and join on constantly &mdash; not every column just in case.','note'):''}
+    ${st>=3?tell('Mini-check','index on <code>status</code> (4 even values) still shows Seq Scan &mdash; bug or correct?'+(st>=4?' &rarr; <b>correct</b>: low selectivity. Consider a partial index if one status is rare.':''),st>=4?'':'warn'):''}` },
+
+{ id:'syntax', kick:'5.3 · how to create', eyebrow:'The syntax menu', title:'Six ways to write CREATE INDEX',
+  tag:'index', steps:[
+  {note:'Basic single column.'},
+  {note:'Composite: equality column first, range or sort column last.'},
+  {note:'Partial: only the pending orders.'},
+  {note:'Expression: fixes the LOWER trap.'},
+  {note:'Covering: enables the Index Only Scan.'},
+  {note:'And in production: build it CONCURRENTLY, so the table is not locked against writes while the index builds.'}],
+  body:(st)=>{
+    const B = [`-- basic single column
+CREATE INDEX idx_orders_customer ON orders (customer_id);`,
+`-- composite: equality col first, range/sort col last
+CREATE INDEX idx_orders_cust_date ON orders (customer_id, order_date);`,
+`-- partial
+CREATE INDEX idx_orders_pending ON orders (order_date) WHERE status = 'pending';`,
+`-- expression (fixes the LOWER() trap)
+CREATE INDEX idx_cust_lower_email ON customers (LOWER(email));`,
+`-- covering → enables Index-Only Scan
+CREATE INDEX idx_orders_cust_incl ON orders (customer_id) INCLUDE (total_amount);`,
+`-- PRODUCTION: build without locking writes
+CREATE INDEX [[CONCURRENTLY]] idx_orders_customer ON orders (customer_id);`];
+    return `<div class="stack">${B.map((b,i)=> st>=i ? `<div class="pop">${sql(b)}</div>`:'').join('')}</div>`; } },
+
+{ id:'which', kick:'5.4 · which index to pick', eyebrow:'The query pattern picks the index', title:'And the trap most people miss',
+  tag:'index', steps:[
+  {note:'Equality or range on one column: a plain B-tree.'},
+  {note:'Filter plus join, or filter plus sort together: composite, equality column first, range or sort column last.'},
+  {note:'Only a slice is ever queried: partial.'},
+  {note:'WHERE wraps the column in a function: a functional, or expression, index — a plain index is skipped.'},
+  {note:'Here is that trap. A plain index on email, query on LOWER(email): Seq Scan, 1,980 milliseconds — the index on email is not usable.'},
+  {note:'Create the index on the expression itself, and it becomes an Index Scan: 1.8 milliseconds.'}],
+  body:(st)=>{
+    const P = [['Equality / range on one column','plain B-tree','WHERE customer_id = 42'],
+               ['Filter + join, or filter + sort','composite — equality first, range/sort last',''],
+               ['Only a slice is ever queried','partial',"WHERE status = 'pending'"],
+               ['WHERE wraps the column in a function','functional (expression) index','a plain index is skipped']];
+    if(st < 4) return `<div class="rows" style="--cols:1.2fr 1fr .9fr">
+      ${P.map((p,i)=> st>=i ? `<div class="row pop"><span>${p[0]}</span><b style="font-size:.85rem">&rarr; ${p[1]}</b><span class="ex">${p[2]}</span></div>`:'').join('')}</div>`;
+    return `<div class="pair">
+      <div class="pop"><span class="verdict bad">&#10005; Without — plain index on email</span>${sql(`SELECT * FROM customers
+WHERE [[!LOWER(email)]] = 'sam@shop.io';`)}
+        <div class="stat warn" style="margin-top:.4rem"><div class="k">Seq Scan on customers</div><div class="v">1,980 ms</div><div class="s">index on email not usable</div></div></div>
+      ${st>=5?`<div class="pop"><span class="verdict good">&check; With — functional index on the expression</span>${sql(`CREATE INDEX idx_cust_lower_email
+  ON customers ([[LOWER(email)]]);`)}
+        <div class="stat good" style="margin-top:.4rem"><div class="k">Index Scan using idx_cust_lower_email</div><div class="v">1.8 ms</div><div class="s">same query, untouched</div></div></div>`:'<div></div>'}
+    </div>`; } },
+
+{ id:'victory', kick:'the victory lap', eyebrow:'Kill the Seq Scan', title:'Same data. Same result.',
+  tag:'payoff', steps:[
+  {note:'One index, built concurrently: customer_id, then order_date, including total_amount. Equality first, range second, and the amount carried along so the table is never touched.'},
+  {note:'Before: Seq Scan on orders, 19.9 million rows removed, 2,140 milliseconds. After: Index Only Scan using our new index — 3.2 milliseconds.'},
+  {note:'Same data. Same result. We changed the route, not the destination. 2,140 milliseconds to 3.'}],
+  body:(st)=>`${sql(`CREATE INDEX CONCURRENTLY idx_orders_cust_date_amt
+  ON orders ([[customer_id, order_date]]) [[INCLUDE (total_amount)]];`,'lg')}
+    <div class="stage-row">${sceneVictory(st>=1?(st>=2?2:1):0)}</div>
+    <div class="stats" style="--n:2">
+      <div class="stat warn"><div class="k">Before</div><div class="v" style="font-size:1.25rem">Seq Scan on orders</div><div class="s">Rows Removed: 19,901,789 &middot; 2,140 ms</div></div>
+      ${st>=1?`<div class="stat good pop"><div class="k">After</div><div class="v" style="font-size:1.25rem">Index Only Scan using idx_orders_cust_date_amt</div><div class="s">3.2 ms</div></div>`:'<div></div>'}
+    </div>
+    ${st>=2?`<p class="quote pop">Same data. Same result. We changed the route, not the destination.</p>`:''}` },
+
+{ id:'quiz5', kick:'checkpoint · segment 5', eyebrow:'Check yourself', title:'Rapid fire',
+  tag:'checkpoint', steps:quizSteps(Q5), body:(st)=>quiz(Q5, st, 2) },
+
+/* ================= 7 · wrap-up ================= */
+{ id:'workflow', kick:'your reusable framework', eyebrow:'Wrap-up', title:'The optimization workflow',
+  tag:'recap', steps:[
+  {note:'Measure — EXPLAIN ANALYZE. Find the slowest node and the headline time.'},
+  {note:'Read — spot the Seq Scan, the Rows Removed, the estimate-actual gap, the disk sort.'},
+  {note:'Rewrite, free fixes first — prune columns, keep filters sargable, kill correlated subqueries, refresh statistics.'},
+  {note:'Restructure — CTEs for clarity, and to compute expensive things once.'},
+  {note:'Index — last, and deliberate. Pick the type, order the columns right, verify, and mind the write cost.'},
+  {note:'Re-measure — confirm the win. Never trust a fix you did not re-plan. And then, if it is still slow, back to step one.'}],
+  body:(st)=>{
+    const W = [['Measure','<code>EXPLAIN ANALYZE</code>; find the slowest node & the headline time.','gauge'],
+               ['Read','spot the Seq Scan, Rows Removed, the estimate/actual gap, the disk sort.','search'],
+               ['Rewrite','free fixes first — prune columns, keep filters sargable, kill correlated subqueries, refresh stats.','bolt'],
+               ['Restructure','CTEs for clarity and to compute expensive things once.','layers'],
+               ['Index','last, deliberate — pick the type, order columns right, verify, mind the write cost.','build'],
+               ['Re-measure','confirm the win; never trust a fix you didn\'t re-plan.','clock']];
+    return `<div class="cards" style="grid-template-columns:repeat(3,minmax(0,1fr))">
+      ${W.map((w,i)=> st>=i ? `<div class="pop">${card('Step '+(i+1),w[0],w[1],i===4?'pp':i===5?'good':'tl',ico(w[2]))}</div>`:'').join('')}</div>
+      ${st>=5?`<p class="lede pop" style="text-align:center">&#8635; still slow? back to step 1.</p>`:''}`; } },
+
+{ id:'homework', kick:'bridge to next lecture', eyebrow:'Homework & what\'s next', title:'Bring me a plan',
+  tag:'close', steps:[
+  {note:'The assignment: a slow order_items report query and its schema. Bring the EXPLAIN ANALYZE from before and after, and the index you chose — and justify the column order.'},
+  {note:'Next: the layers we deliberately skipped today — partitioning, and configuration tuning like work_mem. The schema and hardware levels.'},
+  {note:'And the line to leave them with. You did not make the database faster. You stopped making it do unnecessary work — and then you gave it a shortcut. That is query optimization.'}],
+  body:(st)=>`<div class="cards" style="grid-template-columns:1fr 1fr">
+      <div class="pop">${card('Your assignment','A slow order_items report','Bring its <code>EXPLAIN ANALYZE</code> before/after and the index you chose &mdash; <b>justify the column order</b>.','pp',ico('search'))}</div>
+      ${st>=1?`<div class="pop">${card('Next','The layers we skipped','Partitioning and configuration tuning (<code>work_mem</code>) &mdash; the schema and hardware levels we set aside today.','tl',ico('layers'))}</div>`:''}
+    </div>
+    ${st>=2?`<p class="quote pop">"You didn't make the database faster. You stopped making it do unnecessary work &mdash; and then you gave it a shortcut. That's query optimization."</p>`:''}` },
+
+{ id:'thanks', kick:'questions welcome', eyebrow:'Thank you', title:'Thanks — and over to you.',
+  tag:'close', steps:[
+  {note:'Thank them, point at the feedback form, and open the floor. Invite them to bring the plan they are stuck on — we will read it together.'}],
+  body:(st)=>`<div class="hero">
+    <div class="big">Over to <em>you</em>.</div>
+    <div class="sub">Please fill the feedback form. Questions welcome &mdash; bring the plan you're stuck on and we'll read it together.</div>
+    <div class="race" style="font-size:1.5rem"><span class="from">2,140 ms</span><span class="arr">&rarr;</span><span class="to">3.2 ms</span></div>
+  </div>` }
+];
+
+</script>
+<script>
+/* ---- assemble the running order: a chapter opener, then that chapter's slides ---- */
+const BY_ID = Object.fromEntries(DECK.map(d => [d.id, d]));
+const RUN = [];
+CHAPTERS.forEach(ch => {
+  if(OPENERS[ch.n]) RUN.push({
+    id:'ch'+ch.n, chapter:ch, type:'chapter',
+    eyebrow:'Chapter '+ch.n, title:ch.t, kick:OPENERS[ch.n].when, tag:'story',
+    steps:[
+      {note:'Chapter card. Pause here — this is where the story turns. Read the situation, then let them feel the problem before you name the technique.'},
+      {note:OPENERS[ch.n].problem},
+      {note:OPENERS[ch.n].detail},
+      {note:OPENERS[ch.n].next}
+    ],
+    body:(st)=>chapterBody(ch, st)
+  });
+  ch.of.forEach(id => { const d = BY_ID[id]; if(d){ d.chapter = ch; RUN.push(d); } });
+});
+DECK.length = 0;
+RUN.forEach(d => DECK.push(d));
+
+/* ===================== presenter engine ===================== */
+const $ = s => document.querySelector(s);
+const stage = $('#stage');
+let si = 0, pi = 0, lastSlide = null;
+
+function render(){
+  const sl = DECK[si];
+  pi = Math.max(0, Math.min(pi, sl.steps.length - 1));
+  const entering = lastSlide !== sl.id;
+  lastSlide = sl.id;
+  stage.innerHTML = `<div class="slide"${entering?' data-entering="1"':''}>`
+                  + `<div class="fit">${sl.body(pi)}</div></div>`;
+  $('#sTitle').textContent   = sl.title;
+  $('#sEyebrow').textContent = sl.eyebrow;
+  $('#sKick').textContent    = sl.kick || '';
+  railState(sl);
+  $('#stepCount').textContent = `${si+1}/${DECK.length} · step ${pi+1}/${sl.steps.length}`;
+  $('#noteSay').innerHTML = sl.steps[pi].note || '—';
+  $('#noteNxt').textContent = pi+1 < sl.steps.length
+    ? `next → step ${pi+2} of this slide`
+    : (si+1 < DECK.length ? `next → ${DECK[si+1].title}` : 'end of deck');
+  const done = DECK.slice(0, si).reduce((n,d)=>n+d.steps.length, 0) + pi + 1;
+  const all  = DECK.reduce((n,d)=>n+d.steps.length, 0);
+  $('#progFill').style.width = (done/all*100).toFixed(2) + '%';
+  fitSlide();
+}
+
+/* Scale the current step down if it would not fit, so a slide is never
+   scrollable and never clipped. Entrance animations start elements translated,
+   so the first measurement can read short — re-measure once the frame has laid
+   out and again once the longest entrance has finished. */
+let fitTimer = null;
+function fitSlide(){
+  const slide = stage.querySelector('.slide'), fit = stage.querySelector('.fit');
+  if(!slide || !fit) return;
+  const measure = () => {
+    if(!fit.isConnected) return;
+    fit.style.transform = '';
+    /* A centred box splits its overflow above AND below, and scrollHeight only
+       counts what hangs below — so a centred measurement under-reports the true
+       need by about half. This applies at every nesting level, not just the
+       outer column, so flatten them all for the measurement. */
+    fit.classList.add('measuring');
+    const avail = fit.clientHeight;
+    let need = fit.scrollHeight;
+    fit.querySelectorAll('*').forEach(el => {        // catch anything still spilling
+      const h = el.scrollHeight;
+      if(h > need && el.parentElement === fit) need = h;
+    });
+    fit.classList.remove('measuring');
+    if(need > avail + 1){
+      /* Centred content that overflows puts half of itself ABOVE the box, which
+         a top-origin scale cannot pull back. Anchor to the top before scaling. */
+      fit.classList.add('topfit');
+      /* the sketch rotations make visual boxes a few px taller than their
+         layout boxes, which scrollHeight cannot see — leave room for it */
+      const k = Math.max(0.42, (avail - 12) / need);
+      fit.style.transform = `scale(${k.toFixed(4)})`;
+    } else {
+      fit.classList.remove('topfit');
+    }
+  };
+  measure();
+  requestAnimationFrame(measure);
+  clearTimeout(fitTimer);
+  fitTimer = setTimeout(measure, 520);                  // after the last .pop lands
+}
+window.addEventListener('resize', fitSlide);
+if(window.ResizeObserver) new ResizeObserver(fitSlide).observe(document.querySelector('#app'));
+/* the rail is the table of contents: click a chapter to jump to its first slide */
+$('#railNav').innerHTML = CHAPTERS.map(ch =>
+  `<div class="rn" data-ch="${ch.n}">
+     <span class="rn-n">${String(ch.n).padStart(2,'0')}</span>
+     <span class="rn-t">${ch.t}</span></div>`).join('');
+$('#railNav').querySelectorAll('.rn').forEach(el => el.onclick = () => {
+  const n = +el.dataset.ch;
+  const at = DECK.findIndex(d => d.chapter && d.chapter.n === n);
+  if(at >= 0){ si = at; pi = 0; render(); }
+});
+function railState(sl){
+  const cur = sl.chapter ? sl.chapter.n : 0;
+  const nav = $('#railNav');
+  let now = null;
+  nav.querySelectorAll('.rn').forEach(el => {
+    const n = +el.dataset.ch;
+    el.classList.toggle('now',  n === cur);
+    el.classList.toggle('done', n <  cur);
+    if(n === cur) now = el;
+  });
+  // if the list is scrolling, keep the chapter we are in on screen
+  if(railScrolls() && now){
+    now.scrollIntoView({block:'nearest', behavior: REDUCED ? 'auto' : 'smooth'});
+  }
+}
+function railScrolls(){
+  const nav = $('#railNav');
+  const over = nav.scrollHeight > nav.clientHeight + 1;
+  nav.classList.toggle('scrolls', over);
+  return over;
+}
+window.addEventListener('resize', railScrolls);
+
+/* ---- navigation: right / left arrow drive the whole deck ---- */
+function next(){
+  const s = DECK[si];
+  if(pi < s.steps.length-1) pi++;
+  else if(si < DECK.length-1){ si++; pi = 0; }
+  else return;
+  render();
+}
+function prev(){
+  if(pi > 0) pi--;
+  else if(si > 0){ si--; pi = DECK[si].steps.length-1; }
+  else return;
+  render();
+}
+function jump(d){ const n = si+d; if(n<0||n>=DECK.length) return; si=n; pi=0; render(); }
+
+/* ---- presenter zoom: type is a share of screen height, this multiplies it ---- */
+const ZMIN=.6, ZMAX=2.0, ZSTEP=.08;
+let zoom = 1;
+try { zoom = parseFloat(localStorage.getItem('qopt-zoom')) || 1; } catch(e){}
+function applyZoom(show){
+  zoom = Math.min(ZMAX, Math.max(ZMIN, zoom));
+  document.documentElement.style.setProperty('--scale', zoom.toFixed(3));
+  try { localStorage.setItem('qopt-zoom', zoom); } catch(e){}
+  if(show){
+    const px = parseFloat(getComputedStyle(document.documentElement).fontSize);
+    const z = $('#zoom');
+    z.innerHTML = Math.round(zoom*100) + '%<small>body text &asymp; ' + Math.round(px*.72) + 'px · 0 resets</small>';
+    z.classList.add('show');
+    clearTimeout(z._t); z._t = setTimeout(()=>z.classList.remove('show'), 1100);
+  }
+  fitSlide();
+}
+applyZoom(false);
+
+/* ---- theme: light matches the lecture deck, dark reads better in a dim hall ---- */
+function applyTheme(t, show){
+  document.documentElement.setAttribute('data-theme', t);
+  try { localStorage.setItem('qopt-theme', t); } catch(e){}
+  if(show){
+    const z = $('#zoom');
+    z.innerHTML = (t === 'dark' ? 'Dark' : 'Light') + '<small>press T to switch</small>';
+    z.classList.add('show');
+    clearTimeout(z._t); z._t = setTimeout(()=>z.classList.remove('show'), 900);
+  }
+}
+let theme = 'light';
+try { theme = localStorage.getItem('qopt-theme') || 'light'; } catch(e){}
+applyTheme(theme, false);
+
+document.addEventListener('keydown', e=>{
+  if($('#ov').classList.contains('open') && !['o','O','Escape'].includes(e.key)) return;
+  switch(e.key){
+    case 'ArrowRight': case ' ': case 'PageDown': e.preventDefault(); next(); break;
+    case 'ArrowLeft':  case 'PageUp':            e.preventDefault(); prev(); break;
+    case 'ArrowDown':  e.preventDefault(); jump(1);  break;
+    case 'ArrowUp':    e.preventDefault(); jump(-1); break;
+    case 'Home': si=0; pi=0; render(); break;
+    case 'End':  si=DECK.length-1; pi=DECK[si].steps.length-1; render(); break;
+    case 'f': case 'F': e.preventDefault(); toggleFull(); break;
+    case 's': case 'S': $('#notes').classList.toggle('open'); break;
+    case 'o': case 'O': $('#ov').classList.toggle('open'); break;
+    case 't': case 'T':
+      theme = theme === 'dark' ? 'light' : 'dark'; applyTheme(theme, true); break;
+    case 'r': case 'R': pi = 0; render(); break;
+    case 'Escape': $('#ov').classList.remove('open'); $('#notes').classList.remove('open'); break;
+    case '+': case '=': e.preventDefault(); zoom += ZSTEP; applyZoom(true); break;
+    case '-': case '_': e.preventDefault(); zoom -= ZSTEP; applyZoom(true); break;
+    case '0': e.preventDefault(); zoom = 1; applyZoom(true); break;
+  }
+});
+stage.addEventListener('click', () => next());
+
+/* ---- full screen: a visible control, since F is only in the footer legend ---- */
+function toggleFull(){
+  document.fullscreenElement ? document.exitFullscreen()
+                             : document.documentElement.requestFullscreen().catch(()=>{});
+}
+$('#btnFull').addEventListener('click', e => { e.stopPropagation(); toggleFull(); });
+document.addEventListener('fullscreenchange', () => {
+  $('#btnFullTxt').textContent = document.fullscreenElement ? 'Exit' : 'Present';
+});
+
+/* ---- run of show ---- */
+$('#ovGrid').innerHTML = DECK.map((s,i)=>
+  `<div class="ovc${s.type==='chapter'?' ovc-ch':''}" data-i="${i}">
+     <div class="i">${s.chapter ? 'CH '+s.chapter.n : ''} · ${s.tag}</div>
+     <div class="t">${s.title}</div></div>`).join('');
+$('#ovGrid').querySelectorAll('.ovc').forEach(el =>
+  el.onclick = () => { si=+el.dataset.i; pi=0; $('#ov').classList.remove('open'); render(); });
+
+/* ---- elapsed timer ---- */
+const t0 = Date.now();
+setInterval(()=>{
+  const s = Math.floor((Date.now()-t0)/1000);
+  $('#clock').textContent = String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');
+}, 1000);
+
+render();
+</script>
+</body>
+</html>
