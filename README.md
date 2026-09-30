@@ -30,7 +30,9 @@ shows the file on disk.
 | `+` / `−` / `0` | type size, for the room you are in |
 | `Home` / `End` | first / last slide |
 
-51 slides, 213 steps. Notes are written for speaking aloud, one per step.
+213 pages — every step counts as its own page, and the counter in the rail
+runs `page 1 / 213` to `page 213 / 213`. Notes are written for speaking aloud,
+one per page.
 
 ## Structure: it is a story
 

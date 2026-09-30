@@ -1904,13 +1904,14 @@ function render(){
   $('#sEyebrow').textContent = sl.eyebrow;
   $('#sKick').textContent    = sl.kick || '';
   railState(sl);
-  $('#stepCount').textContent = `${si+1}/${DECK.length} · step ${pi+1}/${sl.steps.length}`;
   $('#noteSay').innerHTML = sl.steps[pi].note || '—';
   $('#noteNxt').textContent = pi+1 < sl.steps.length
     ? `next → step ${pi+2} of this slide`
     : (si+1 < DECK.length ? `next → ${DECK[si+1].title}` : 'end of deck');
   const done = DECK.slice(0, si).reduce((n,d)=>n+d.steps.length, 0) + pi + 1;
   const all  = DECK.reduce((n,d)=>n+d.steps.length, 0);
+  /* every step is its own page: the counter runs 1 … all across the whole deck */
+  $('#stepCount').textContent = `page ${done} / ${all}`;
   $('#progFill').style.width = (done/all*100).toFixed(2) + '%';
   fitSlide();
 }
