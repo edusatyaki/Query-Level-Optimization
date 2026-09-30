@@ -1,7 +1,7 @@
 # Query-Level Optimization in PostgreSQL — animated infographic deck
 
 An infographic, motion-graphics retelling of the **Query-Level Optimization in
-PostgreSQL** session (source deck by Adhyyan Awasthi, 50 slides), built to be
+PostgreSQL** session (source deck: 50 slides), built to be
 presented. Every concept from the source deck is here, but the static slides
 are replaced with animated SVG scenes that build themselves one step at a time
 as you talk.
@@ -95,8 +95,7 @@ fit. Checked by walking all 213 steps with no errors.
 
 ## Source
 
-`Presentation.pdf` — *Query-Level Optimization in PostgreSQL*, by Adhyyan
-Awasthi, 50 slides. Structure preserved slide for slide: hook → scenario →
+`Presentation.pdf` — *Query-Level Optimization in PostgreSQL*, 50 slides. Structure preserved slide for slide: hook → scenario →
 data model → path; the three levels and the planner; EXPLAIN / ANALYZE /
 BUFFERS, node anatomy, the smell checklist, scan and join vocabulary, the
 "before" plan; six free-win tricks; CTEs (syntax, inlining, the trap); indexing
