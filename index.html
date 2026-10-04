@@ -614,28 +614,25 @@ text{font-family:var(--hand)}
 .stat .v .live{display:inline-block;width:.32em;height:.32em;border-radius:50%;background:var(--flame);
   vertical-align:middle;margin-left:.2em;animation:blip 1.2s ease-in-out infinite}
 
-/* ================= plan-smell cards: see / means / fix ================= */
-.smells{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.6rem .7rem}
-.smell{position:relative;display:flex;flex-direction:column;gap:.28rem;background:var(--card);border:2.5px solid var(--ink);
-  border-radius:var(--wobble);padding:.5rem .75rem .6rem;box-shadow:var(--shadow-sm);min-width:0}
+/* ================= plan-smell cards: title · picture · meaning · fix ================= */
+.smells{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.7rem .8rem}
+.smell{position:relative;display:flex;flex-direction:column;align-items:center;gap:.35rem;text-align:center;
+  background:var(--card);border:2.5px solid var(--ink);border-radius:var(--wobble);padding:.55rem .8rem .65rem;
+  box-shadow:var(--shadow-sm);min-width:0}
 .smell:nth-child(even){border-radius:var(--wobble-2)}
 .smell::after{content:'';position:absolute;left:.7rem;right:.7rem;top:-2px;height:7px;background:var(--flame);border-radius:99px;opacity:.85}
 .smell.good::after{background:var(--leaf)}
-.smell .hd{display:flex;align-items:center;gap:.5rem}
-.smell .no{flex:0 0 auto;width:1.5rem;height:1.5rem;border-radius:50%;display:grid;place-items:center;background:var(--flame);
-  color:var(--on-flame);font-family:var(--marker);font-weight:700;font-size:.95rem;border:2px solid var(--ink)}
+.smell .hd{display:flex;align-items:center;gap:.45rem}
+.smell .no{flex:0 0 auto;width:1.45rem;height:1.45rem;border-radius:50%;display:grid;place-items:center;background:var(--flame);
+  color:var(--on-flame);font-family:var(--marker);font-weight:700;font-size:.9rem;border:2px solid var(--ink)}
 .smell.good .no{background:var(--leaf);color:#fff}
-.smell .nm{font-family:var(--marker);font-weight:700;font-size:1.15rem;line-height:1;color:var(--ink)}
-.smell .pic{height:2.6rem;display:flex;justify-content:center}
+.smell .nm{font-family:var(--marker);font-weight:700;font-size:1.3rem;line-height:1;color:var(--ink)}
+.smell .pic{height:3.3rem;display:flex;justify-content:center}
 .smell .pic svg{height:100%;width:auto;overflow:visible}
-.smell .ln{display:grid;grid-template-columns:3rem minmax(0,1fr);gap:.4rem;align-items:baseline}
-.smell .k{font-family:var(--hand);font-size:.46rem;letter-spacing:.8px;text-transform:uppercase;color:var(--muted)}
-.smell .see{font-family:var(--mono);font-size:.5rem;color:var(--flame-ink);background:var(--flame-soft);border:1.5px solid var(--flame);
-  border-radius:5px;padding:1px 5px;justify-self:start;overflow-wrap:anywhere}
-.smell.good .see{color:var(--ink);background:var(--leaf-soft);border-color:var(--leaf)}
-.smell .means{font-family:var(--hand);font-size:.74rem;line-height:1.15;color:var(--ink)}
-.smell .fix{font-family:var(--hand);font-size:.72rem;line-height:1.2;color:var(--leaf);font-weight:600}
-.smell .fix code{font-size:.85em}
+.smell .means{font-family:var(--hand);font-size:.84rem;line-height:1.15;color:var(--ink)}
+.smell .fix{display:inline-flex;align-items:center;gap:.3rem;font-family:var(--hand);font-size:.72rem;font-weight:600;
+  color:var(--leaf);background:var(--leaf-soft);border:2px solid var(--leaf);border-radius:var(--wobble-2);padding:.08rem .55rem}
+.smell .fix code{font-size:.85em;background:transparent;border:none;padding:0;color:inherit}
 @media (max-width:980px){.smells{grid-template-columns:1fr}}
 </style>
 </head>
@@ -1562,7 +1559,7 @@ WHERE total_amount > 5000;`)}</div>`:'<div></div>'}</div>
 
 { id:'smells', kick:'what to look for', eyebrow:'Define', title:'The plan-smell checklist',
   tag:'explain', steps:[
-  {note:'Six things to look for in a plan. Each card has the same three lines: what you see in the plan, what it means in plain words, and the fix. First: a Seq Scan on a big table when you only wanted a few rows. It read the whole table. Fix: give it an index.'},
+  {note:'Six things to look for in a plan. Each card is one picture, one sentence, and the fix. First: a Seq Scan on a big table when you only wanted a few rows. It read the whole table. Fix: give it an index.'},
   {note:'Two: the planner\'s guess and reality disagree — it guessed a hundred rows, two million came back. Its statistics are out of date. Fix: run ANALYZE on the table.'},
   {note:'Three: Rows Removed by Filter is huge. It read millions of rows and threw almost all of them away. Fix: an index, so it only reads the rows you want.'},
   {note:'Four: Sort Method external merge, Disk. The sort did not fit in memory and spilled to disk, which is slow. Fix: sort fewer rows — a LIMIT, or an index that is already sorted. You want quicksort, Memory.'},
@@ -1598,20 +1595,19 @@ WHERE total_amount > 5000;`)}</div>`:'<div></div>'}</div>
        <rect x="55" y="4" width="10" height="6" rx="1" fill="var(--ink)"/>
        <path d="M60,32 L60,18 M60,32 L70,38" stroke="var(--ink)" stroke-width="2.4" stroke-linecap="round"/>`];
     const S = [
-      ['Seq Scan on a big table',      'Seq Scan on orders',                      'Read the <b>whole table</b> for a few rows.',            'an <b>index</b> on the filter column.'],
-      ['Guess ≠ reality',              'rows=100 … actual rows=2000000',          'The planner <b>guessed wrong</b> &mdash; old stats.',   '<code>ANALYZE orders;</code>'],
-      ['Rows Removed by Filter: huge', 'Rows Removed by Filter: 19901789',        'Read millions, <b>threw almost all away</b>.',            'an <b>index</b> &mdash; read only what you need.'],
-      ['Sort spilled to disk',         'Sort Method: external merge  Disk',       'The sort <b>didn\'t fit in memory</b>.',           'sort fewer rows: <code>LIMIT</code> or a sorted index.'],
-      ['Nested Loop, huge loops=',     'Nested Loop … loops=2000000',             'The <b>same lookup</b>, millions of times.',           'use <code>EXISTS</code> / <code>JOIN</code>, or index the inner side.'],
-      ['Execution Time',               'Execution Time: 2140.870 ms',             'The <b>one number</b> to report.',                              'measure it <b>before and after</b> every fix.']];
+      ['Seq Scan',       'Read the <b>whole table</b> for a few rows',  'add an index'],
+      ['Wrong guess',    'Planner expected <b>100</b> rows, got <b>2M</b>', '<code>ANALYZE</code> the table'],
+      ['Rows Removed',   'Read <b>millions</b>, kept a handful',         'add an index'],
+      ['Disk sort',      'The sort <b>didn\'t fit</b> in memory',        'sort fewer rows'],
+      ['Huge loops=',    'Same lookup, <b>millions</b> of times',        'use <code>EXISTS</code> / <code>JOIN</code>'],
+      ['Execution Time', 'Your <b>headline</b> number',                  'compare before &amp; after']];
     return `<svg width="0" height="0" style="position:absolute"><defs><marker id="smA" viewBox="0 0 10 10" refX="8" refY="5"
         markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--ink)"/></marker></defs></svg>
       <div class="smells">${S.map((x,i)=> st>=i ? `<div class="smell pop ${i===5?'good':''}">
         <div class="hd"><span class="no">${i+1}</span><span class="nm">${x[0]}</span></div>
         <div class="pic"><svg viewBox="0 0 120 60" aria-hidden="true">${PIC[i]}</svg></div>
-        <div class="ln"><span class="k">You see</span><span class="see">${x[1]}</span></div>
-        <div class="ln"><span class="k">It means</span><span class="means">${x[2]}</span></div>
-        <div class="ln"><span class="k">${i===5?'Use it':'Fix'}</span><span class="fix">${x[3]}</span></div></div>`:'').join('')}</div>`; } },
+        <div class="means">${x[1]}</div>
+        <span class="fix">&rarr; ${x[2]}</span></div>`:'').join('')}</div>`; } },
 
 { id:'vocab', kick:'the words plans speak', eyebrow:'Define · vocabulary', title:'Scans and joins',
   tag:'explain', steps:[
