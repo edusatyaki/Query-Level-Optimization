@@ -1,0 +1,226 @@
+<script>
+/* ---- assemble the running order: a chapter opener, then that chapter's slides ---- */
+const BY_ID = Object.fromEntries(DECK.map(d => [d.id, d]));
+const RUN = [];
+CHAPTERS.forEach(ch => {
+  if(OPENERS[ch.n]) RUN.push({
+    id:'ch'+ch.n, chapter:ch, type:'chapter',
+    eyebrow:'Chapter '+ch.n, title:ch.t, kick:OPENERS[ch.n].when, tag:'story',
+    steps:[
+      {note:'Chapter card. Pause here — this is where the story turns. Read the situation, then let them feel the problem before you name the technique.'},
+      {note:OPENERS[ch.n].problem},
+      {note:OPENERS[ch.n].detail},
+      {note:OPENERS[ch.n].next}
+    ],
+    body:(st)=>chapterBody(ch, st)
+  });
+  ch.of.forEach(id => { const d = BY_ID[id]; if(d){ d.chapter = ch; RUN.push(d); } });
+});
+DECK.length = 0;
+RUN.forEach(d => DECK.push(d));
+
+/* ===================== presenter engine ===================== */
+const $ = s => document.querySelector(s);
+const stage = $('#stage');
+let si = 0, pi = 0, lastSlide = null;
+
+function render(){
+  const sl = DECK[si];
+  pi = Math.max(0, Math.min(pi, sl.steps.length - 1));
+  const entering = lastSlide !== sl.id;
+  lastSlide = sl.id;
+  stage.innerHTML = `<div class="slide"${entering?' data-entering="1"':''}>`
+                  + `<div class="fit">${sl.body(pi)}</div></div>`;
+  $('#sTitle').textContent   = sl.title;
+  $('#sEyebrow').textContent = sl.eyebrow;
+  $('#sKick').textContent    = sl.kick || '';
+  railState(sl);
+  $('#noteSay').innerHTML = sl.steps[pi].note || '—';
+  $('#noteNxt').textContent = pi+1 < sl.steps.length
+    ? `next → step ${pi+2} of this slide`
+    : (si+1 < DECK.length ? `next → ${DECK[si+1].title}` : 'end of deck');
+  const done = DECK.slice(0, si).reduce((n,d)=>n+d.steps.length, 0) + pi + 1;
+  const all  = DECK.reduce((n,d)=>n+d.steps.length, 0);
+  /* every step is its own page: the counter runs 1 … all across the whole deck */
+  $('#stepCount').textContent = `page ${done} / ${all}`;
+  $('#progFill').style.width = (done/all*100).toFixed(2) + '%';
+  fitSlide();
+}
+
+/* Scale the current step down if it would not fit, so a slide is never
+   scrollable and never clipped. Entrance animations start elements translated,
+   so the first measurement can read short — re-measure once the frame has laid
+   out and again once the longest entrance has finished. */
+let fitTimer = null;
+function fitSlide(){
+  const slide = stage.querySelector('.slide'), fit = stage.querySelector('.fit');
+  if(!slide || !fit) return;
+  const measure = () => {
+    if(!fit.isConnected) return;
+    fit.style.transform = '';
+    /* A centred box splits its overflow above AND below, and scrollHeight only
+       counts what hangs below — so a centred measurement under-reports the true
+       need by about half. This applies at every nesting level, not just the
+       outer column, so flatten them all for the measurement. */
+    fit.classList.add('measuring');
+    const avail = fit.clientHeight;
+    let need = fit.scrollHeight;
+    fit.querySelectorAll('*').forEach(el => {        // catch anything still spilling
+      const h = el.scrollHeight;
+      if(h > need && el.parentElement === fit) need = h;
+    });
+    fit.classList.remove('measuring');
+    if(need > avail + 1){
+      /* Centred content that overflows puts half of itself ABOVE the box, which
+         a top-origin scale cannot pull back. Anchor to the top before scaling. */
+      fit.classList.add('topfit');
+      /* the sketch rotations make visual boxes a few px taller than their
+         layout boxes, which scrollHeight cannot see — leave room for it */
+      const k = Math.max(0.42, (avail - 12) / need);
+      fit.style.transform = `scale(${k.toFixed(4)})`;
+    } else {
+      fit.classList.remove('topfit');
+    }
+  };
+  measure();
+  requestAnimationFrame(measure);
+  clearTimeout(fitTimer);
+  fitTimer = setTimeout(measure, 520);                  // after the last .pop lands
+}
+window.addEventListener('resize', fitSlide);
+if(window.ResizeObserver) new ResizeObserver(fitSlide).observe(document.querySelector('#app'));
+/* the rail is the table of contents: click a chapter to jump to its first slide */
+$('#railNav').innerHTML = CHAPTERS.map(ch =>
+  `<div class="rn" data-ch="${ch.n}">
+     <span class="rn-n">${String(ch.n).padStart(2,'0')}</span>
+     <span class="rn-t">${ch.t}</span></div>`).join('');
+$('#railNav').querySelectorAll('.rn').forEach(el => el.onclick = () => {
+  const n = +el.dataset.ch;
+  const at = DECK.findIndex(d => d.chapter && d.chapter.n === n);
+  if(at >= 0){ si = at; pi = 0; render(); }
+});
+function railState(sl){
+  const cur = sl.chapter ? sl.chapter.n : 0;
+  const nav = $('#railNav');
+  let now = null;
+  nav.querySelectorAll('.rn').forEach(el => {
+    const n = +el.dataset.ch;
+    el.classList.toggle('now',  n === cur);
+    el.classList.toggle('done', n <  cur);
+    if(n === cur) now = el;
+  });
+  // if the list is scrolling, keep the chapter we are in on screen
+  if(railScrolls() && now){
+    now.scrollIntoView({block:'nearest', behavior: REDUCED ? 'auto' : 'smooth'});
+  }
+}
+function railScrolls(){
+  const nav = $('#railNav');
+  const over = nav.scrollHeight > nav.clientHeight + 1;
+  nav.classList.toggle('scrolls', over);
+  return over;
+}
+window.addEventListener('resize', railScrolls);
+
+/* ---- navigation: right / left arrow drive the whole deck ---- */
+function next(){
+  const s = DECK[si];
+  if(pi < s.steps.length-1) pi++;
+  else if(si < DECK.length-1){ si++; pi = 0; }
+  else return;
+  render();
+}
+function prev(){
+  if(pi > 0) pi--;
+  else if(si > 0){ si--; pi = DECK[si].steps.length-1; }
+  else return;
+  render();
+}
+function jump(d){ const n = si+d; if(n<0||n>=DECK.length) return; si=n; pi=0; render(); }
+
+/* ---- presenter zoom: type is a share of screen height, this multiplies it ---- */
+const ZMIN=.6, ZMAX=2.0, ZSTEP=.08;
+let zoom = 1;
+try { zoom = parseFloat(localStorage.getItem('qlive-zoom')) || 1; } catch(e){}
+function applyZoom(show){
+  zoom = Math.min(ZMAX, Math.max(ZMIN, zoom));
+  document.documentElement.style.setProperty('--scale', zoom.toFixed(3));
+  try { localStorage.setItem('qlive-zoom', zoom); } catch(e){}
+  if(show){
+    const px = parseFloat(getComputedStyle(document.documentElement).fontSize);
+    const z = $('#zoom');
+    z.innerHTML = Math.round(zoom*100) + '%<small>body text &asymp; ' + Math.round(px*.72) + 'px · 0 resets</small>';
+    z.classList.add('show');
+    clearTimeout(z._t); z._t = setTimeout(()=>z.classList.remove('show'), 1100);
+  }
+  fitSlide();
+}
+applyZoom(false);
+
+/* ---- theme: light matches the lecture deck, dark reads better in a dim hall ---- */
+function applyTheme(t, show){
+  document.documentElement.setAttribute('data-theme', t);
+  try { localStorage.setItem('qlive-theme', t); } catch(e){}
+  if(show){
+    const z = $('#zoom');
+    z.innerHTML = (t === 'dark' ? 'Dark' : 'Light') + '<small>press T to switch</small>';
+    z.classList.add('show');
+    clearTimeout(z._t); z._t = setTimeout(()=>z.classList.remove('show'), 900);
+  }
+}
+let theme = 'light';
+try { theme = localStorage.getItem('qlive-theme') || 'light'; } catch(e){}
+applyTheme(theme, false);
+
+document.addEventListener('keydown', e=>{
+  if($('#ov').classList.contains('open') && !['o','O','Escape'].includes(e.key)) return;
+  switch(e.key){
+    case 'ArrowRight': case ' ': case 'PageDown': e.preventDefault(); next(); break;
+    case 'ArrowLeft':  case 'PageUp':            e.preventDefault(); prev(); break;
+    case 'ArrowDown':  e.preventDefault(); jump(1);  break;
+    case 'ArrowUp':    e.preventDefault(); jump(-1); break;
+    case 'Home': si=0; pi=0; render(); break;
+    case 'End':  si=DECK.length-1; pi=DECK[si].steps.length-1; render(); break;
+    case 'f': case 'F': e.preventDefault(); toggleFull(); break;
+    case 's': case 'S': $('#notes').classList.toggle('open'); break;
+    case 'o': case 'O': $('#ov').classList.toggle('open'); break;
+    case 't': case 'T':
+      theme = theme === 'dark' ? 'light' : 'dark'; applyTheme(theme, true); break;
+    case 'r': case 'R': pi = 0; render(); break;
+    case 'Escape': $('#ov').classList.remove('open'); $('#notes').classList.remove('open'); break;
+    case '+': case '=': e.preventDefault(); zoom += ZSTEP; applyZoom(true); break;
+    case '-': case '_': e.preventDefault(); zoom -= ZSTEP; applyZoom(true); break;
+    case '0': e.preventDefault(); zoom = 1; applyZoom(true); break;
+  }
+});
+stage.addEventListener('click', () => next());
+
+/* ---- full screen: a visible control, since F is only in the footer legend ---- */
+function toggleFull(){
+  document.fullscreenElement ? document.exitFullscreen()
+                             : document.documentElement.requestFullscreen().catch(()=>{});
+}
+$('#btnFull').addEventListener('click', e => { e.stopPropagation(); toggleFull(); });
+document.addEventListener('fullscreenchange', () => {
+  $('#btnFullTxt').textContent = document.fullscreenElement ? 'Exit' : 'Present';
+});
+
+/* ---- run of show ---- */
+$('#ovGrid').innerHTML = DECK.map((s,i)=>
+  `<div class="ovc${s.type==='chapter'?' ovc-ch':''}" data-i="${i}">
+     <div class="i">${s.chapter ? 'CH '+s.chapter.n : ''} · ${s.tag}</div>
+     <div class="t">${s.title}</div></div>`).join('');
+$('#ovGrid').querySelectorAll('.ovc').forEach(el =>
+  el.onclick = () => { si=+el.dataset.i; pi=0; $('#ov').classList.remove('open'); render(); });
+
+/* ---- elapsed timer ---- */
+const t0 = Date.now();
+setInterval(()=>{
+  const s = Math.floor((Date.now()-t0)/1000);
+  $('#clock').textContent = String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');
+}, 1000);
+
+render();
+</script>
+</body>
+</html>

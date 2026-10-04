@@ -110,9 +110,7 @@ workflow, homework and close.
 ## Checked against real plans
 
 Every claim in this deck was run against a PostgreSQL database in the
-companion **live-code deck**:
-[Query-Level-Optimization-Detailed](https://github.com/edusatyaki/Query-Level-Optimization-Detailed)
-([open it](https://edusatyaki.github.io/Query-Level-Optimization-Detailed/)). Five slides were
+companion **live-code deck** in [`live/`](live/) ([open it](https://edusatyaki.github.io/Query-Level-Optimization/live/)). Five slides were
 corrected to match what the plans showed:
 
 - **Trick 3:** the JOIN rewrite keeps the key (`DISTINCT c.customer_id, c.name`).

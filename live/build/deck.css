@@ -1,0 +1,91 @@
+/* ================= live-code additions ================= */
+/* the psql prompt above every query */
+.run{display:flex;flex-direction:column;gap:.22rem;min-width:0}
+.prompt{font-family:var(--mono);font-size:.46rem;color:var(--muted);letter-spacing:.2px;display:flex;
+  align-items:center;gap:.4rem}
+.prompt b{color:var(--pencil-2);font-weight:700}
+.prompt .go{margin-left:auto;font-family:var(--hand);font-size:.5rem;letter-spacing:1.2px;text-transform:uppercase;
+  padding:.04rem .45rem;border:2px solid var(--ink);border-radius:var(--wobble-2);background:var(--amber)}
+
+/* a captured plan, printed line by line as if psql were streaming it */
+.plan.out{font-size:.5rem;line-height:1.5;padding:.45rem .7rem;white-space:pre-wrap;overflow:hidden;
+  background:var(--card)}
+.plan.out.sm{font-size:.44rem}
+.plan.out.lg{font-size:.58rem}
+.plan .pl{display:block;opacity:0;animation:fadeIn .28s ease forwards}
+.plan mark{border-radius:3px;padding:0 2px;color:var(--ink)}
+.plan mark.bad{background:var(--flame-soft);outline:2px solid var(--flame);color:var(--flame-ink)}
+.plan mark.good{background:var(--leaf-soft);outline:2px solid var(--leaf);color:var(--ink)}
+.plan mark.key{background:var(--amber)}
+.plan .err{color:var(--flame-ink);font-weight:700}
+.plan .xt{font-weight:700;color:var(--ink)}
+
+/* the timing badge under a plan */
+.msb{display:flex;align-items:baseline;gap:.4rem;font-family:var(--hand);font-size:.56rem;letter-spacing:1px;
+  text-transform:uppercase;color:var(--muted)}
+.msb b{font-family:var(--marker);font-size:1.25rem;letter-spacing:0;text-transform:none}
+.msb.bad b{color:var(--flame-ink)} .msb.good b{color:var(--leaf)}
+
+.race.sm{font-size:1.35rem}
+.race .x{font-family:var(--hand);font-size:.62rem;letter-spacing:1px;text-transform:uppercase;color:var(--ink);
+  background:var(--amber);border:2px solid var(--ink);border-radius:var(--wobble-2);padding:.1rem .5rem}
+.foot{display:flex;flex-wrap:wrap;align-items:center;gap:.6rem 1rem}
+.foot{flex-wrap:nowrap;align-items:stretch}
+.foot .tell{flex:1 1 0;min-width:0}
+
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.5rem .7rem}
+.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.5rem .7rem}
+@media (max-width:980px){.grid2,.grid3{grid-template-columns:1fr}.foot{flex-wrap:wrap}}
+
+/* ================= infographics ================= */
+/* before/after speed bars, log scale */
+.speed{flex:0 1 19rem;min-width:15rem;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:.18rem .8rem;align-items:center;
+  background:var(--card);border:2.5px solid var(--ink);border-radius:var(--wobble);padding:.35rem .7rem;box-shadow:var(--shadow-sm)}
+.speed .sp{grid-column:1;display:grid;grid-template-columns:2.9rem minmax(0,1fr) 4rem;gap:.35rem;align-items:center;
+  font-family:var(--hand);font-size:.52rem;letter-spacing:1px;text-transform:uppercase;color:var(--muted)}
+.speed .sp i{display:block;height:.72rem;width:var(--w);border:2px solid var(--ink);border-radius:3px;
+  transform-origin:left;transform:scaleX(0);animation:growX .9s cubic-bezier(.22,1,.36,1) forwards}
+.speed .sp.bad i{background:var(--flame)} .speed .sp.good i{background:var(--leaf);animation-delay:.25s}
+.speed .sp b{font-family:var(--marker);font-size:.98rem;letter-spacing:0;text-transform:none}
+.speed .sp.bad b{color:var(--flame-ink)} .speed .sp.good b{color:var(--leaf)}
+.speed .x{grid-column:2;grid-row:1 / span 2;font-family:var(--marker);font-weight:700;font-size:1.3rem;line-height:1;
+  color:var(--ink);background:var(--amber);border:2.5px solid var(--ink);border-radius:var(--wobble-2);padding:.25rem .55rem;
+  transform:rotate(-2deg);text-align:center}
+.speed .x small{display:block;font-family:var(--hand);font-weight:400;font-size:.46rem;letter-spacing:1px;text-transform:uppercase}
+
+/* a concept drawing that holds the empty half of a slide until the fix arrives */
+.art{display:flex;align-items:center;justify-content:center;min-height:0}
+.art svg.scene{max-height:34vh}
+.art-cap{font-family:var(--hand);font-size:.52rem;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted);text-align:center}
+.strip svg.scene{max-height:20vh}
+
+/* horizontal size / share bars */
+.hbars{display:grid;gap:.3rem;background:var(--card);border:2.5px solid var(--ink);border-radius:var(--wobble-2);
+  padding:.45rem .7rem;box-shadow:var(--shadow-sm)}
+.hb{display:grid;grid-template-columns:8.5rem minmax(0,1fr) 4.2rem;gap:.5rem;align-items:center;font-family:var(--mono);font-size:.5rem}
+.hb i{display:block;height:.8rem;width:var(--w);min-width:3px;border:2px solid var(--ink);border-radius:3px;background:var(--pencil);
+  transform-origin:left;transform:scaleX(0);animation:growX .9s cubic-bezier(.22,1,.36,1) forwards}
+.hb.bad i{background:var(--flame)} .hb.good i{background:var(--leaf)}
+.hb b{font-family:var(--marker);font-size:.95rem}
+.stack100{display:flex;height:1.5rem;border:2.5px solid var(--ink);border-radius:6px;overflow:hidden;box-shadow:var(--shadow-sm)}
+.stack100 span{display:flex;align-items:center;justify-content:center;font-family:var(--hand);font-size:.5rem;color:var(--ink);
+  border-right:2px solid var(--ink);white-space:nowrap;overflow:hidden;transform-origin:left;animation:growX .8s ease forwards}
+.stack100 span:last-child{border-right:none}
+
+/* icon chips in a row (scan ladder, command trio) */
+.chips{display:flex;align-items:stretch;gap:.35rem;flex-wrap:wrap}
+.chip{flex:1 1 0;display:flex;align-items:center;gap:.4rem;padding:.28rem .55rem;background:var(--card);border:2.5px solid var(--ink);
+  border-radius:var(--wobble);box-shadow:var(--shadow-sm);font-family:var(--hand);font-size:.6rem;color:var(--ink-2);min-width:0}
+.chip:nth-child(even){border-radius:var(--wobble-2)}
+.chip svg{width:1.15rem;height:1.15rem;flex:0 0 auto}
+.chip b{font-family:var(--marker);font-size:.9rem;color:var(--ink)}
+.chip.on{background:var(--amber)}
+.chip-arr{align-self:center;font-family:var(--marker);font-size:1rem;color:var(--muted)}
+
+/* chapter cards get an illustration on the right */
+.chapter .ch-body{flex:1.25 1 0}
+.chapter .ch-art{flex:1 1 0;min-width:14rem;display:flex;align-items:center;justify-content:center}
+.chapter .ch-art svg.scene{width:100%;height:auto;max-height:46vh}
+@media (max-width:900px){.chapter .ch-art{display:none}}
+.quiz-head{display:flex;align-items:center;gap:.8rem}
+.quiz-head svg.scene{width:14rem;height:auto;flex:0 0 auto}
