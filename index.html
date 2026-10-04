@@ -1378,6 +1378,10 @@ const tile = t => `<div class="smell pop ${t.cls||''}">
     ${t.code?`<div class="code">${t.code}</div>`:''}
     ${t.l?`<div class="means">${t.l}</div>`:''}
     ${t.c?`<span class="fix ${t.cc||''}">${t.c}</span>`:''}</div>`;
+const cheat = (R, st, per=1, start=1) => `<div class="cheat">
+      <div class="ch-h"><span></span><span class="bad">&#10005; Don't write</span><span class="good">&check; Write this</span><span>why</span></div>
+      ${R.map((x,i)=> st>=Math.floor(i/per) ? `<div class="ch-r pop"><span class="no">${start+i}</span>
+        <code class="bad">${esc(x[0])}</code><code class="good">${esc(x[1])}</code><span class="why">${x[2]}</span></div>`:'').join('')}</div>`;
 const tiles = (arr, st, cols=3, cls='') => `<div class="smells ${cls}" style="grid-template-columns:repeat(${cols},minmax(0,1fr))">${arr.map((t,i)=> st>=(t.at!=null?t.at:i) ? tile(t) : '').join('')}</div>`;
 const oneline = (c, cc='') => `<div class="oneline pop"><span class="chipln ${cc}">${c}</span></div>`;
 
@@ -1401,7 +1405,7 @@ const CHAPTERS = [
  {n:1, t:'The dashboard that died',        of:['title','problem','scenario','sale','model','rows','path']},
  {n:2, t:'Meet the planner',               of:['levels','planner','samerows']},
  {n:3, t:'Reading the execution plan',     of:['explain','node','smells','vocab','before','quiz2']},
- {n:4, t:'The free wins',                  of:['t1','t2','t3','t4','t5','t6','tcheat','quiz3']},
+ {n:4, t:'The free wins',                  of:['t1','t2','t3','t4','t5','t6','tcheat','tmoreA','tmoreB','tmoreC','tmoreD','tmoreE','quiz3']},
  {n:5, t:'Common Table Expressions',       of:['cteneed','ctedef','inline','trap','quiz4']},
  {n:6, t:'Indexing: give it a shortcut',   of:['book','types','btree','hash','gin','gist','brin','composite','shapes',
                                                'whenidx','cost','syntax','which','victory','quiz5']},
@@ -1904,10 +1908,27 @@ SELECT ... FROM orders ...;`)}</div>`:''}
       ['WHERE c.email = \'amit@shop.com\' OR o.order_id = 880231', '… WHERE c.email = … UNION … WHERE o.order_id = 880231', 'two index seeks'],
       ['ORDER BY order_date DESC;   -- app keeps 20', 'ORDER BY order_date DESC LIMIT 20;', 'stops early'],
       ['COPY …; SELECT …;   -- stale stats', 'COPY …; ANALYZE orders; SELECT …;', 'right estimates']];
-    return `<div class="cheat">
-      <div class="ch-h"><span></span><span class="bad">&#10005; Don't write</span><span class="good">&check; Write this</span><span>why</span></div>
-      ${R.map((x,i)=> st>=i ? `<div class="ch-r pop"><span class="no">${i+1}</span>
-        <code class="bad">${esc(x[0])}</code><code class="good">${esc(x[1])}</code><span class="why">${x[2]}</span></div>`:'').join('')}</div>`; } },
+    return cheat(R, st); } },
+
+{ id:'tmoreA', kick:'30 more · 1 of 5', eyebrow:'Don\'t write this → write this', title:'Filters: keep the column bare',
+  tag:'trick', steps:[{note:'Seven: don\'t wrap order_date in EXTRACT — write a date range. Eight: keep math off the column. Nine: don\'t cast the column.'},{note:'Ten: no date_trunc on the column — a range. Eleven: drop COALESCE when the column is never NULL. Twelve: a leading % can\'t use a B-tree index.'}],
+  body:(st)=>cheat([[`WHERE EXTRACT(YEAR FROM order_date) = 2025`,`WHERE order_date >= '2025-01-01' AND order_date < '2026-01-01'`,`index usable`],[`WHERE total_amount + 100 > 5100`,`WHERE total_amount > 5000`,`column alone`],[`WHERE customer_id::text = '1024'`,`WHERE customer_id = 1024`,`no cast`],[`WHERE date_trunc('day', created_at) = '2025-11-28'`,`WHERE created_at >= '2025-11-28' AND created_at < '2025-11-29'`,`range, not function`],[`WHERE COALESCE(status, '') = 'pending'`,`WHERE status = 'pending'`,`bare column`],[`WHERE name LIKE '%Sharma'`,`WHERE name LIKE 'Sharma%'   -- or a trigram index`,`prefix can use an index`]], st, 3, 7) },
+
+{ id:'tmoreB', kick:'30 more · 2 of 5', eyebrow:'Don\'t write this → write this', title:'Joins & subqueries',
+  tag:'trick', steps:[{note:'Thirteen: NOT IN breaks on NULLs and plans badly — NOT EXISTS. Fourteen: JOIN then DISTINCT fans out — EXISTS. Fifteen: a sum per row — JOIN and GROUP BY once.'},{note:'Sixteen: a comma join with no condition is a cross join. Seventeen: a WHERE on the right table turns LEFT JOIN into JOIN — write JOIN. Eighteen: join on matching types.'}],
+  body:(st)=>cheat([[`WHERE customer_id NOT IN (SELECT customer_id FROM orders)`,`WHERE NOT EXISTS (SELECT 1 FROM orders o WHERE o.customer_id = c.customer_id)`,`NULL-safe anti-join`],[`SELECT DISTINCT c.* FROM customers c JOIN orders o ON …`,`SELECT c.* FROM customers c WHERE EXISTS (SELECT 1 FROM orders o WHERE …)`,`no fan-out`],[`SELECT c.name, (SELECT SUM(total_amount) FROM orders o WHERE o.customer_id = c.customer_id) FROM customers c`,`SELECT c.name, SUM(o.total_amount) FROM customers c JOIN orders o USING (customer_id) GROUP BY c.customer_id, c.name`,`one pass`],[`FROM orders o, customers c WHERE o.total_amount > 5000`,`FROM orders o JOIN customers c ON c.customer_id = o.customer_id WHERE …`,`no accidental cross join`],[`LEFT JOIN order_items oi ON … WHERE oi.quantity > 2`,`JOIN order_items oi ON … WHERE oi.quantity > 2`,`say what you mean`],[`ON o.order_id::text = oi.order_id::text`,`ON o.order_id = oi.order_id`,`same types → index`]], st, 3, 13) },
+
+{ id:'tmoreC', kick:'30 more · 3 of 5', eyebrow:'Don\'t write this → write this', title:'Counting & grouping',
+  tag:'trick', steps:[{note:'Nineteen: to ask "any?", use EXISTS — it stops at the first row. Twenty: for a rough total, read the estimate from pg_class. Twenty-one: filter in WHERE, not HAVING.'},{note:'Twenty-two: group by the primary key. Twenty-three: UNION ALL when duplicates are impossible. Twenty-four: ORDER BY random sorts everything — sample instead.'}],
+  body:(st)=>cheat([[`SELECT COUNT(*) FROM orders WHERE customer_id = 1024;   -- > 0 ?`,`SELECT EXISTS (SELECT 1 FROM orders WHERE customer_id = 1024);`,`stops at first row`],[`SELECT COUNT(*) FROM orders;   -- for a 'about 20M' badge`,`SELECT reltuples::bigint FROM pg_class WHERE relname = 'orders';`,`instant estimate`],[`GROUP BY status HAVING status = 'delivered'`,`WHERE status = 'delivered' GROUP BY status`,`filter before grouping`],[`GROUP BY c.customer_id, c.name, c.email, c.city`,`GROUP BY c.customer_id   -- primary key covers the rest`,`smaller group key`],[`SELECT … FROM orders_2024 UNION SELECT … FROM orders_2025`,`SELECT … FROM orders_2024 UNION ALL SELECT … FROM orders_2025`,`no de-dup sort`],[`ORDER BY random() LIMIT 5`,`FROM orders TABLESAMPLE SYSTEM (1) LIMIT 5`,`no full sort`]], st, 3, 19) },
+
+{ id:'tmoreD', kick:'30 more · 4 of 5', eyebrow:'Don\'t write this → write this', title:'Paging & round trips',
+  tag:'trick', steps:[{note:'Twenty-five: OFFSET still reads and skips every row — page by the last id seen. Twenty-six: let the database filter, not your app. Twenty-seven: N plus one queries — send one query with ANY.'},{note:'Twenty-eight: LIMIT without ORDER BY returns arbitrary rows. Twenty-nine: fetch one extra row instead of counting. Thirty: pass a list as one array parameter.'}],
+  body:(st)=>cheat([[`ORDER BY order_id DESC LIMIT 20 OFFSET 100000`,`WHERE order_id < :last_seen ORDER BY order_id DESC LIMIT 20`,`keyset: no skipping`],[`SELECT * FROM orders;   -- then filter in the app`,`SELECT … FROM orders WHERE customer_id = 1024;`,`filter in the database`],[`-- loop: SELECT … WHERE customer_id = $1   (once per customer)`,`SELECT … FROM orders WHERE customer_id = ANY($1);`,`one round trip`],[`SELECT * FROM orders LIMIT 20;   -- no ORDER BY`,`SELECT … FROM orders ORDER BY order_date DESC LIMIT 20;`,`same rows every time`],[`SELECT COUNT(*) …;  SELECT … LIMIT 20;   -- 'has more?'`,`SELECT … LIMIT 21;   -- 21 rows back = has more`,`one query`],[`WHERE order_id IN (1, 2, 3, … 5,000 literals)`,`WHERE order_id = ANY($1::bigint[])`,`one parameter`]], st, 3, 25) },
+
+{ id:'tmoreE', kick:'30 more · 5 of 5', eyebrow:'Don\'t write this → write this', title:'Writes & maintenance',
+  tag:'trick', steps:[{note:'Thirty-one: batch inserts into one transaction, or use COPY. Thirty-two: TRUNCATE empties a table instantly. Thirty-three: update millions in batches, not one giant statement.'},{note:'Thirty-four: build indexes CONCURRENTLY on live tables. Thirty-five: don\'t rewrite rows that already have the value. Thirty-six: VACUUM FULL locks the table — plain VACUUM doesn\'t.'}],
+  body:(st)=>cheat([[`-- 10,000 single-row INSERTs, each its own transaction`,`BEGIN;  INSERT … VALUES (…), (…), (…);  COMMIT;   -- or COPY`,`one commit`],[`DELETE FROM sessions;   -- empty the table`,`TRUNCATE sessions;`,`instant, no row-by-row`],[`UPDATE orders SET status = 'archived' WHERE order_date < '2023-01-01';   -- millions at once`,`UPDATE … WHERE order_id BETWEEN :a AND :b;   -- batches of 10k`,`short locks`],[`CREATE INDEX ON orders (customer_id);   -- on a busy table`,`CREATE INDEX CONCURRENTLY ON orders (customer_id);`,`writes keep flowing`],[`UPDATE orders SET status = 'delivered' WHERE order_id < 1000`,`… WHERE order_id < 1000 AND status <> 'delivered'`,`skip no-op writes`],[`VACUUM FULL orders;   -- during business hours`,`VACUUM (ANALYZE) orders;`,`no table lock`]], st, 3, 31) },
 
 { id:'quiz3', kick:'checkpoint · segment 3', eyebrow:'Check yourself', title:'Three sins in one query',
   tag:'checkpoint', steps:quizSteps(Q3, 'Our dashboard query used SELECT star, a LOWER on email, and a correlated subquery — three of six sins at once.'),
