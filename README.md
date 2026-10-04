@@ -30,8 +30,8 @@ shows the file on disk.
 | `+` / `−` / `0` | type size, for the room you are in |
 | `Home` / `End` | first / last slide |
 
-213 pages — every step counts as its own page, and the counter in the rail
-runs `page 1 / 213` to `page 213 / 213`. Notes are written for speaking aloud,
+215 pages — every step counts as its own page, and the counter in the rail
+runs `page 1 / 215` to `page 215 / 215`. Notes are written for speaking aloud,
 one per page.
 
 ## Structure: it is a story
@@ -93,7 +93,7 @@ paper with keywords weighted; the wrong part of a bad query is outlined in
 flame, the fix highlighted in amber. Warm dark mode on `T`.
 
 A slide never scrolls: an inner wrapper scales the step down if it would not
-fit. Checked by walking all 213 steps with no errors.
+fit. Checked by walking all 215 steps with no errors.
 
 ## Source
 
@@ -104,3 +104,23 @@ BUFFERS, node anatomy, the smell checklist, scan and join vocabulary, the
 (the idea, five access methods each opened up, composite, special shapes, when,
 cost, syntax, which to pick, the functional-index trap, the victory lap); the
 workflow, homework and close.
+
+## Checked against real plans
+
+Every claim in this deck was run against a PostgreSQL database in the
+companion **live-code deck**:
+[Query-Level-Optimization-Detailed](https://github.com/edusatyaki/Query-Level-Optimization-Detailed)
+([open it](https://edusatyaki.github.io/Query-Level-Optimization-Detailed/)). Five slides were
+corrected to match what the plans showed:
+
+- **Trick 3:** the JOIN rewrite keeps the key (`DISTINCT c.customer_id, c.name`).
+  `DISTINCT c.name` alone merges customers who share a name.
+- **Trick 4:** an OR on one column already uses the index (BitmapOr), so IN is cleaner,
+  not faster. The OR that blocks indexes spans two tables, and a `UNION` fixes it.
+- **CTEs:** inlined by default only when referenced once. Referenced 2+ times,
+  PostgreSQL materializes the CTE.
+- **Composite:** without the leading column the index can't be *sought*, only read
+  whole. PostgreSQL 18 skip scan helps when the leading column has few values.
+- **Victory lap:** the slide now shows the query `(customer_id, order_date) INCLUDE
+  (total_amount)` actually serves, Aarav's drill-down. A final step adds that the
+  ₹5,000 filter and the all-customers dashboard each need their own index.

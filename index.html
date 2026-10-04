@@ -1222,11 +1222,11 @@ const Q3 = [
   ['You spot <code>loops=2000000</code> on a Nested Loop\'s inner side. Cause?', 'a correlated subquery, re-run once per outer row.'],
   ['Which trick changes the result set, not just the speed?', 'none should — that is the point. (Column pruning changes the columns shown, never the rows.)']];
 const Q4 = [
-  ['Default in PostgreSQL 14: inlined or materialized?', 'inlined.'],
+  ['Our CTE is referenced once. In PostgreSQL 14: inlined or materialized?', 'inlined. (Referenced twice or more, it would be materialized by default.)'],
   ['When is forcing <code>MATERIALIZED</code> clearly right?', 'an expensive block that is referenced more than once.'],
   ['You materialized a whole table and now an id lookup is slow. Why?', 'the filter cannot push into the materialized block.']];
 const Q5 = [
-  ['Composite <code>(customer_id, order_date)</code> — does <code>WHERE order_date &gt; x</code> use it?', 'No — the leftmost-prefix rule.'],
+  ['Composite <code>(customer_id, order_date)</code> — does <code>WHERE order_date &gt; x</code> use it?', 'It cannot <i>seek</i> — leftmost-prefix rule. At best the planner reads the whole index when that is cheaper than the table.'],
   ['Index type for a <code>tags text[]</code> column?', 'GIN.'],
   ['Why <code>CREATE INDEX CONCURRENTLY</code> in production?', 'it does not lock the table against writes while it builds.'],
   ['What plan node proves the covering index worked?', 'Index Only Scan.']];
@@ -1488,16 +1488,16 @@ WHERE [[email]] = 'amit@shop.com';`)}</div>`:'<div></div>'}</div>
 { id:'t3', kick:'trick 3 · join / exists over correlated subqueries', eyebrow:'Trick 3 of 6', title:'Don\'t re-run the inner query per row',
   tag:'trick', steps:[
   {note:'The correlated subquery. For every one of two million customers, count their orders. The inner query runs once per outer row.'},
-  {note:'Rewrite as a JOIN with DISTINCT — one pass over each table.'},
+  {note:'Rewrite as a JOIN with DISTINCT — one pass over each table. Keep the key in the DISTINCT: DISTINCT c.name alone would merge two different customers who share a name.'},
   {note:'Or, best when you only care whether something exists: EXISTS. It can stop at the first matching order.'},
-  {note:'Plan tell: a Nested Loop with a huge loops count becomes a single Hash Join. Watch the picture — two million trips become one build and one probe.'}],
+  {note:'Plan tell: the per-row SubPlan, with a huge loops count, becomes a single Hash Semi Join. Watch the picture — two million trips become one build and one probe. Measured live: about three hours for the correlated version, a quarter of a second for EXISTS.'}],
   body:(st)=>`<div class="pair" style="--n:3">
       <div><span class="verdict bad">&#10005; Correlated subquery</span>${sql(`SELECT name FROM customers c
 WHERE ([[!SELECT COUNT(*)]]
        [[!FROM orders o]]
        [[!WHERE o.customer_id]]
        [[!  = c.customer_id]]) > 0;`,'sm')}</div>
-      ${st>=1?`<div class="pop"><span class="verdict good">&check; JOIN</span>${sql(`SELECT DISTINCT c.name
+      ${st>=1?`<div class="pop"><span class="verdict good">&check; JOIN</span>${sql(`SELECT DISTINCT [[c.customer_id]], c.name
 FROM customers c
 JOIN orders o
   ON o.customer_id
@@ -1507,22 +1507,29 @@ WHERE [[EXISTS]] (
   SELECT 1 FROM orders o
   WHERE o.customer_id
       = c.customer_id);`,'sm')}</div>`:'<div></div>'}</div>
-    ${st>=3?`<div class="stage-row pop">${sceneLoops(1)}</div>${tell('Plan tell','a <b>Nested Loop</b> with a huge <code>loops=</code> becomes a single <b>Hash Join</b>.')}`:''}` },
+    ${st>=3?`<div class="stage-row pop">${sceneLoops(1)}</div>${tell('Plan tell','a per-row <b>SubPlan</b> with a huge <code>loops=</code> becomes a single <b>Hash Semi Join</b>. Keep the key in <code>DISTINCT</code> — <code>DISTINCT c.name</code> alone merges namesakes.')}`:''}` },
 
 { id:'t4', kick:'trick 4 · rewrite OR into IN / UNION', eyebrow:'Trick 4 of 6', title:'Unblock the index the OR was hiding',
   tag:'trick', steps:[
-  {note:'Why: an OR — especially across different columns — often defeats index use.'},
-  {note:'On the same column, IN says the same thing and hands the planner a list it can look up. Across different columns, split into a UNION of two indexable queries.'},
-  {note:'Plan tell: a Bitmap Index Scan appears instead of a Seq Scan.'}],
-  body:(st)=>`<p class="lede"><b>Why:</b> an <code>OR</code> across different columns often defeats index use.</p>
-    <div class="pair">
-      <div><span class="verdict bad">&#10005; OR</span>${sql(`SELECT * FROM orders
-WHERE status = 'shipped'
-   [[!OR]] status = 'delivered';`,'lg')}</div>
-      ${st>=1?`<div class="pop"><span class="verdict good">&check; IN</span>${sql(`SELECT * FROM orders
-WHERE status [[IN]] ('shipped', 'delivered');`,'lg')}</div>`:'<div></div>'}</div>
-    ${st>=1?tell('Different columns','split into a <code>UNION</code> of two queries, each of which can use its own index.','note'):''}
-    ${st>=2?tell('Plan tell','a <b>Bitmap Index Scan</b> appears instead of a Seq Scan.'):''}` },
+  {note:'On one column, OR and IN are close cousins. Modern PostgreSQL already uses an index for both — a BitmapOr for the OR, a single equals-ANY for the IN. Prefer IN: it is cleaner and easier to build from code, but do not promise a big speed-up.'},
+  {note:'The OR that really hurts spans two tables: Amit\'s orders, or order 880231. The condition can only be checked after joining everything, so neither index can be used — a Join Filter throws away two million rows.'},
+  {note:'Split it into a UNION. Each branch is a simple query that seeks its own index — the email index, and the primary key. Measured live: about 365 milliseconds down to well under one.'},
+  {note:'Plan tell: a hash join with a giant Join Filter becomes two index lookups glued by UNION.'}],
+  body:(st)=>`<div class="pair">
+      <div><span class="verdict good">&check; One column &mdash; IN (OR works too)</span>${sql(`SELECT * FROM orders
+WHERE status [[IN]] ('pending', 'cancelled');
+-- OR on the same column also uses the
+-- index (BitmapOr); IN is just cleaner`,'sm')}</div>
+      ${st>=1?`<div class="pop"><span class="verdict bad">&#10005; OR across two tables</span>${sql(`SELECT o.order_id, o.total_amount
+FROM orders o JOIN customers c
+  ON c.customer_id = o.customer_id
+WHERE c.email = 'amit@shop.com'
+   [[!OR]] o.order_id = 880231;`,'sm')}</div>`:'<div></div>'}</div>
+    ${st>=2?`<div class="pop"><span class="verdict good">&check; UNION &mdash; each branch seeks its own index</span>${sql(`SELECT o.order_id, o.total_amount FROM orders o JOIN customers c ON c.customer_id = o.customer_id
+WHERE c.email = 'amit@shop.com'
+[[UNION]]
+SELECT order_id, total_amount FROM orders WHERE order_id = 880231;`,'sm')}</div>`:''}
+    ${st>=3?tell('Plan tell','a Hash Join with a giant <code>Join Filter</code> becomes two <b>Index Scans</b> glued by <code>UNION</code>.'):''}` },
 
 { id:'t5', kick:'trick 5 · push LIMIT down · drop needless DISTINCT / ORDER BY', eyebrow:'Trick 5 of 6', title:'Don\'t sort millions to show twenty',
   tag:'trick', steps:[
@@ -1611,14 +1618,14 @@ ORDER BY ct.spent DESC LIMIT 20;`,'sm')}
 
 { id:'inline', kick:'PostgreSQL 12+', eyebrow:'Define', title:'Inlined by default — you can override',
   tag:'cte', steps:[
-  {note:'By default, a CTE is inlined — folded into the main query, so the planner can optimize across it. For example, it can push a filter down into the block.'},
+  {note:'A CTE that is referenced once is inlined by default — folded into the main query, so the planner can optimize across it. For example, it can push a filter down into the block. Careful: referenced twice or more, PostgreSQL materializes it by default.'},
   {note:'AS MATERIALIZED: compute the block once, store the result, reuse it. Great when the block is expensive and referenced two or more times.'},
-  {note:'AS NOT MATERIALIZED: force inlining even when it is referenced several times, so the planner can push filters and joins inside.'},
+  {note:'AS NOT MATERIALIZED: force inlining even when it is referenced several times, so the planner can push filters and joins inside. The price: the block is computed once per reference — measured live, a CTE used twice took twice as long inlined.'},
   {note:'Rule of thumb: inline for the planner\'s freedom; materialize only when an expensive block is genuinely reused.'}],
-  body:(st)=>`<p class="lede">By default a CTE is <b>inlined</b> &mdash; folded into the main query so the planner can optimize across it (e.g. push filters down).</p>
+  body:(st)=>`<p class="lede">Referenced <b>once</b>, a CTE is <b>inlined</b> by default &mdash; folded into the main query so the planner can optimize across it (e.g. push filters down). Referenced <b>2+ times</b>, it is materialized by default.</p>
     <div class="cards" style="grid-template-columns:1fr 1fr">
       ${st>=1?`<div class="pop">${card('Compute once','AS MATERIALIZED','Compute the block <b>once</b>, store the result, reuse it. Great when the block is expensive and referenced 2+ times.','pp',ico('layers'))}</div>`:''}
-      ${st>=2?`<div class="pop">${card('Force inlining','AS NOT MATERIALIZED','Force inlining even when referenced multiple times, so the planner can push filters and joins inside.','tl',ico('route'))}</div>`:''}
+      ${st>=2?`<div class="pop">${card('Force inlining','AS NOT MATERIALIZED','Force inlining even when referenced multiple times, so the planner can push filters and joins inside &mdash; at the cost of computing it once per reference.','tl',ico('route'))}</div>`:''}
     </div>
     ${st>=1?sql(`WITH customer_totals AS [[MATERIALIZED]] ( ... )   -- or: AS NOT MATERIALIZED`):''}
     ${st>=3?tell('Rule of thumb','inline for the planner\'s freedom; materialize only when an expensive block is genuinely reused.'):''}` },
@@ -1712,10 +1719,10 @@ SELECT * FROM all_orders WHERE order_id = 42;                -- filter can't pus
   {note:'A composite index on customer_id, then order_date. Think of a phone book: sorted by surname, then first name.'},
   {note:'WHERE customer_id = 1024 — uses it. All of 1024\'s entries sit together.'},
   {note:'customer_id = 1024 AND order_date after November first — uses it. A slice of that same block.'},
-  {note:'order_date alone skips the leftmost column. The matching dates are scattered across every customer — like finding everyone named Riya in a phone book sorted by surname. The rule for column order: equality columns first, range and sort columns last.'}],
+  {note:'order_date alone skips the leftmost column. The matching dates are scattered across every customer — like finding everyone named Riya in a phone book sorted by surname. The planner cannot seek into it; at best it reads the whole index when that is cheaper than the table — in the live run, 45 milliseconds instead of 13 with the columns the right way round. And PostgreSQL 18 adds skip scan, which helps only when the leading column has few distinct values. The rule for column order: equality columns first, range and sort columns last.'}],
   body:(st)=>`${sql(`CREATE INDEX ON orders (customer_id, order_date);`,'lg')}
     <div class="stage-row">${sceneComposite(st)}</div>
-    ${st>=3?tell('Column order','equality columns first, range / sort columns last.','note'):''}` },
+    ${st>=3?tell('Column order','equality columns first, range / sort columns last. Without the leading column the index can be read whole, never <b>sought</b> (PG 18 skip scan helps only when the leading column has few values).','note'):''}` },
 
 { id:'shapes', kick:'5.1 · special shapes', eyebrow:'Four shapes worth knowing', title:'Unique, partial, expression, covering',
   tag:'index', steps:[
@@ -1810,17 +1817,22 @@ WHERE [[!LOWER(email)]] = 'sam@shop.io';`)}
 
 { id:'victory', kick:'the victory lap', eyebrow:'Kill the Seq Scan', title:'Same data. Same result.',
   tag:'payoff', steps:[
-  {note:'One index, built concurrently: customer_id, then order_date, including total_amount. Equality first, range second, and the amount carried along so the table is never touched.'},
-  {note:'Before: Seq Scan on orders, 19.9 million rows removed, 2,140 milliseconds. After: Index Only Scan using our new index — 3.2 milliseconds.'},
-  {note:'Same data. Same result. We changed the route, not the destination. 2,140 milliseconds to 3.'}],
-  body:(st)=>`${sql(`CREATE INDEX CONCURRENTLY idx_orders_cust_date_amt
-  ON orders ([[customer_id, order_date]]) [[INCLUDE (total_amount)]];`,'lg')}
+  {note:'The query this index is built for: Aarav\'s orders this month — customer 1024, from the first of the month. One index, built concurrently: customer_id, then order_date, including total_amount. Equality first, range second, and the amount carried along so the table is never touched.'},
+  {note:'Before: Seq Scan on orders — all twenty million rows read to return Aarav\'s handful. 2,140 milliseconds. After: Index Only Scan using our new index — 3.2 milliseconds.'},
+  {note:'Same data. Same result. We changed the route, not the destination. 2,140 milliseconds to 3.'},
+  {note:'One honest footnote: this index serves this query, not every query. The orders-over-five-thousand filter from the before picture needs its own index on total_amount, and the all-customers dashboard filters on order_date alone, so it needs order_date first. Each query gets the index its WHERE clause asks for.'}],
+  body:(st)=>`${sql(`SELECT order_date, total_amount FROM orders
+WHERE [[customer_id = 1024]] AND [[order_date >= date_trunc('month', CURRENT_DATE)]];
+
+CREATE INDEX CONCURRENTLY idx_orders_cust_date_amt
+  ON orders ([[customer_id, order_date]]) [[INCLUDE (total_amount)]];`,'sm')}
     <div class="stage-row">${sceneVictory(st>=1?(st>=2?2:1):0)}</div>
     <div class="stats" style="--n:2">
-      <div class="stat warn"><div class="k">Before</div><div class="v" style="font-size:1.25rem">Seq Scan on orders</div><div class="s">Rows Removed: 19,901,789 &middot; 2,140 ms</div></div>
+      <div class="stat warn"><div class="k">Before</div><div class="v" style="font-size:1.25rem">Seq Scan on orders</div><div class="s">all 20M rows read for Aarav's handful &middot; 2,140 ms</div></div>
       ${st>=1?`<div class="stat good pop"><div class="k">After</div><div class="v" style="font-size:1.25rem">Index Only Scan using idx_orders_cust_date_amt</div><div class="s">3.2 ms</div></div>`:'<div></div>'}
     </div>
-    ${st>=2?`<p class="quote pop">Same data. Same result. We changed the route, not the destination.</p>`:''}` },
+    ${st===2?`<p class="quote pop">Same data. Same result. We changed the route, not the destination.</p>`:''}
+    ${st>=3?tell('One index per WHERE','<code>total_amount &gt; 5000</code> needs <code>(total_amount)</code>; the all-customers dashboard needs <code>(order_date) INCLUDE (customer_id, total_amount)</code>. This index serves the drill-down.','note'):''}` },
 
 { id:'quiz5', kick:'checkpoint · segment 5', eyebrow:'Check yourself', title:'Rapid fire',
   tag:'checkpoint', steps:quizSteps(Q5), body:(st)=>quiz(Q5, st, 2) },
@@ -1863,6 +1875,8 @@ WHERE [[!LOWER(email)]] = 'sam@shop.io';`)}
     <div class="big">Over to <em>you</em>.</div>
     <div class="sub">Please fill the feedback form. Questions welcome &mdash; bring the plan you're stuck on and we'll read it together.</div>
     <div class="race" style="font-size:1.5rem"><span class="from">2,140 ms</span><span class="arr">&rarr;</span><span class="to">3.2 ms</span></div>
+    <div class="sub" style="font-size:.78rem">Every query, run live with its real plan:
+      <a href="https://edusatyaki.github.io/Query-Level-Optimization-Detailed/" style="color:var(--pencil-2)">edusatyaki.github.io/Query-Level-Optimization-Detailed</a></div>
   </div>` }
 ];
 
