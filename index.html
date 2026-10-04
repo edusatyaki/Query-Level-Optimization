@@ -653,6 +653,20 @@ text{font-family:var(--hand)}
 .chipln.note{color:var(--ink);background:var(--amber-soft);border-color:var(--amber-2)}
 .chipln code{font-size:.85em}
 
+
+/* chapter cards: short lines + a picture */
+.chapter.has-art{flex-direction:column;align-items:stretch;justify-content:center;gap:1rem}
+.chapter.has-art .ch-body{flex:0 0 auto;min-width:0;max-width:none}
+.chapter.has-art .ch-art{flex:0 1 auto;min-height:0;display:flex;align-items:center;justify-content:center}
+.chapter.has-art .ch-art svg.scene{width:100%;height:auto;max-height:34vh}
+.chapter.has-art .ch-title{font-size:2.4rem}
+.chapter.has-art .ch-when{display:flex;align-items:center;gap:.5rem}
+.ch-badge{display:inline-grid;place-items:center;width:2.1rem;height:2.1rem;border-radius:50%;background:var(--amber);
+  border:2.5px solid var(--ink);font-family:var(--marker);font-weight:700;font-size:1.1rem;letter-spacing:0;color:var(--ink)}
+.chapter .ch-problem{font-size:1.75rem}
+.chapter .ch-detail{font-size:1.15rem}
+.chapter .ch-detail b{color:var(--ink)}
+@media (max-width:900px){.chapter .ch-art{display:none}}
 </style>
 </head>
 <body>
@@ -1375,43 +1389,71 @@ const CHAPTERS = [
 
 const OPENERS = {
  2:{when:'Segment 1 · 6 minutes',
-    problem:'We never told the database to scan the whole table.',
-    detail:'The query planner chose that. Query optimization is the same destination by a faster road — and the planner is the one picking the road.',
-    next:'So before we change anything, let us meet the planner and the number it minimizes.'},
+    problem:'We never said "scan everything".',
+    detail:'The <b>planner</b> chose that.',
+    next:'So let\'s meet the planner.',
+    art:()=>scenePlanner(3),
+    say:['We never told the database to scan the whole table.',
+         'The query planner chose that. Query optimization is the same destination by a faster road — and the planner is the one picking the road.',
+         'So before we change anything, let us meet the planner and the number it minimizes.']},
  3:{when:'Segment 2 · 15 minutes',
-    problem:'You cannot optimize what you cannot see.',
-    detail:'EXPLAIN is the X-ray. It prints the plan the planner chose, node by node, with its estimates — and with ANALYZE, with what actually happened.',
-    next:'From here on, every change is a hypothesis you can verify.'},
+    problem:'You can\'t fix what you can\'t see.',
+    detail:'<b>EXPLAIN</b> shows the plan.',
+    next:'Every change: check the plan.',
+    art:()=>sceneSeqScan(1),
+    say:['You cannot optimize what you cannot see.',
+         'EXPLAIN is the X-ray. It prints the plan the planner chose, node by node, with its estimates — and with ANALYZE, with what actually happened.',
+         'From here on, every change is a hypothesis you can verify.']},
  4:{when:'Segment 3 · 15 minutes',
-    problem:'Some of the slowness is self-inflicted — in how the SQL is written.',
-    detail:'Six rewrites that cost nothing: no schema change, no index. Each one leaves a fingerprint in the plan.',
-    next:'Six tricks, roughly two minutes each.'},
+    problem:'Some slowness is in how we write SQL.',
+    detail:'Six <b>free</b> rewrites. No new index.',
+    next:'One trick at a time.',
+    art:()=>sceneRoad(1),
+    say:['Some of the slowness is self-inflicted — in how the SQL is written.',
+         'Six rewrites that cost nothing: no schema change, no index. Each one leaves a fingerprint in the plan.',
+         'Six tricks, roughly two minutes each.']},
  5:{when:'Segment 4 · 10 minutes',
-    problem:'The real dashboard query is a nest of subqueries nobody wants to touch.',
-    detail:'A Common Table Expression gives a sub-result a name, so you can reference it like a temporary table — for readability, and to compute an expensive block once.',
-    next:'And one trap, where naming it makes things far worse.'},
+    problem:'The real query is a mess.',
+    detail:'A <b>CTE</b> names a piece once.',
+    next:'Plus one trap to avoid.',
+    art:()=>sceneCTEFlow(3),
+    say:['The real dashboard query is a nest of subqueries nobody wants to touch.',
+         'A Common Table Expression gives a sub-result a name, so you can reference it like a temporary table — for readability, and to compute an expensive block once.',
+         'And one trap, where naming it makes things far worse.']},
  6:{when:'Segment 5 · 17 minutes',
-    problem:'No rewrite removes that last Seq Scan.',
-    detail:'The database simply has no shortcut to "this month\'s orders for this customer." It has to read everything to find them.',
-    next:'Time to give it one.'},
+    problem:'Rewrites can\'t remove the last Seq Scan.',
+    detail:'The database needs a <b>shortcut</b>.',
+    next:'That shortcut is an index.',
+    art:()=>sceneBook(1),
+    say:['No rewrite removes that last Seq Scan.',
+         'The database simply has no shortcut to "this month\'s orders for this customer." It has to read everything to find them.',
+         'Time to give it one.']},
  7:{when:'Wrap-up',
-    problem:'You did not make the database faster.',
-    detail:'You stopped making it do unnecessary work — and then you gave it a shortcut.',
-    next:'Here is that, as a workflow you can reuse on any slow query.'}
+    problem:'We didn\'t make it faster.',
+    detail:'We removed <b>waste</b>, then added a <b>shortcut</b>.',
+    next:'Here\'s the workflow to reuse.',
+    art:()=>sceneVictory(2),
+    say:['You did not make the database faster.',
+         'You stopped making it do unnecessary work — and then you gave it a shortcut.',
+         'Here is that, as a workflow you can reuse on any slow query.']}
 };
 
 function chapterBody(ch, st){
   const o = OPENERS[ch.n] || {};
-  return `<div class="chapter">
-    <div class="ch-rail"><span class="ch-num">${String(ch.n).padStart(2,'0')}</span>
-      <span class="ch-of">Chapter ${ch.n} of ${CHAPTERS.length}</span></div>
-    <div class="ch-body">
-      <div class="ch-when">${o.when||''}</div>
+  const lines = `
       <h2 class="ch-title">${ch.t}</h2>
       ${st>=1?`<p class="ch-problem pop">${o.problem||''}</p>`:''}
       ${st>=2?`<p class="ch-detail pop">${o.detail||''}</p>`:''}
-      ${st>=3?`<p class="ch-next pop">${o.next||''}</p>`:''}
-    </div></div>`;
+      ${st>=3?`<p class="ch-next pop">${o.next||''}</p>`:''}`;
+  if(o.art) return `<div class="chapter has-art">
+    <div class="ch-body">
+      <div class="ch-when"><span class="ch-badge">${String(ch.n).padStart(2,'0')}</span>Chapter ${ch.n} of ${CHAPTERS.length} &middot; ${o.when||''}</div>
+      ${lines}
+    </div><div class="ch-art">${o.art()}</div></div>`;
+  return `<div class="chapter">
+    <div class="ch-rail"><span class="ch-num">${String(ch.n).padStart(2,'0')}</span>
+      <span class="ch-of">Chapter ${ch.n} of ${CHAPTERS.length}</span></div>
+    <div class="ch-body"><div class="ch-when">${o.when||''}</div>${lines}</div></div>`;
 }
 
 const Q2 = [
@@ -2120,9 +2162,9 @@ CHAPTERS.forEach(ch => {
     eyebrow:'Chapter '+ch.n, title:ch.t, kick:OPENERS[ch.n].when, tag:'story',
     steps:[
       {note:'Chapter card. Pause here — this is where the story turns. Read the situation, then let them feel the problem before you name the technique.'},
-      {note:OPENERS[ch.n].problem},
-      {note:OPENERS[ch.n].detail},
-      {note:OPENERS[ch.n].next}
+      {note:(OPENERS[ch.n].say||[])[0] || OPENERS[ch.n].problem},
+      {note:(OPENERS[ch.n].say||[])[1] || OPENERS[ch.n].detail},
+      {note:(OPENERS[ch.n].say||[])[2] || OPENERS[ch.n].next}
     ],
     body:(st)=>chapterBody(ch, st)
   });
