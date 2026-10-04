@@ -763,8 +763,8 @@ function scenePath(step){
   const lbl = ['Read the plan','Fix the query text','Restructure (CTEs)','Add the right index'];
   let g = `<path d="M40,170 C120,170 110,150 130,150 S300,90 370,90 S560,150 620,150 S800,90 860,90 S950,70 970,70"
               fill="none" stroke="var(--line)" stroke-width="16" stroke-linecap="round"/>`;
-  g += `<text class="t-lbl" x="40" y="206" style="fill:var(--flame-ink)">30,000 ms</text>
-        <text class="t-lbl" x="970" y="48" text-anchor="end" style="fill:var(--leaf)">milliseconds</text>`;
+  g += `<text class="t-lbl" x="26" y="176" text-anchor="end" style="fill:var(--flame-ink)">30,000 ms</text>
+        <text class="t-lbl" x="984" y="76" style="fill:var(--leaf)">milliseconds</text>`;
   if(step >= 4) g += wire('M40,170 C120,170 110,150 130,150 S300,90 370,90 S560,150 620,150 S800,90 860,90 S950,70 970,70',
                           {packets:2, dur:3.2, color:'var(--flame)', r:7});
   pts.forEach((p, i) => {
@@ -775,7 +775,7 @@ function scenePath(step){
       <text class="t-big" x="${p[0]}" y="${p[1]+11}" text-anchor="middle">${i+1}</text>
       <text class="t-lbl" x="${p[0]}" y="${p[1] + (p[1] > 100 ? 62 : -44)}" text-anchor="middle" style="font-size:19px">${lbl[i]}</text></g>`;
   });
-  return SV('0 0 1000 230', g);
+  return SV('-110 0 1210 230', g);
 }
 
 /* ---- same destination, a faster road ---- */
