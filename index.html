@@ -582,6 +582,37 @@ text{font-family:var(--hand)}
 @media (max-width:980px){.two,.two.wl,.pair,.dts{grid-template-columns:1fr}
   .stats{grid-template-columns:1fr 1fr}}
 
+
+/* ================= ShopEasy: brand, customers, the sale ================= */
+.brand{display:inline-flex;align-items:center;gap:.4rem;font-family:var(--marker);font-weight:700;
+  font-size:1.35rem;line-height:1;color:var(--ink)}
+.brand svg{width:1.5em;height:1.5em;flex:0 0 auto}
+.brand small{font-family:var(--hand);font-weight:400;font-size:.5rem;letter-spacing:1.3px;
+  text-transform:uppercase;color:var(--muted);margin-left:.15rem}
+.brand-row{display:flex;align-items:center;gap:.8rem;flex-wrap:wrap}
+.sticker{display:inline-block;font-family:var(--marker);font-weight:700;font-size:1.05rem;line-height:1;
+  color:var(--on-flame);background:var(--flame);border:2.5px solid var(--ink);border-radius:var(--wobble-2);
+  padding:.22rem .6rem;transform:rotate(-3deg);box-shadow:var(--shadow-sm)}
+.sticker.sv-hot{animation:hotPulse 1.3s ease-in-out infinite}
+
+.custs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.55rem}
+.cust{position:relative;display:grid;grid-template-columns:3.1rem 1fr;gap:.55rem;align-items:center;
+  background:var(--card);border:2.5px solid var(--ink);border-radius:var(--wobble);padding:.4rem .65rem;
+  box-shadow:var(--shadow-sm)}
+.cust:nth-child(even){border-radius:var(--wobble-2);transform:rotate(.3deg)}
+.cust:nth-child(odd){transform:rotate(-.25deg)}
+.cust .av{width:3.1rem;height:3.1rem;border-radius:50%;background:var(--pencil-soft);border:2px solid var(--ink);
+  overflow:hidden}
+.cust .av svg{width:100%;height:100%;display:block}
+.cust .nm{font-family:var(--marker);font-weight:700;font-size:1.02rem;line-height:1;color:var(--ink)}
+.cust .mt{font-family:var(--hand);font-size:.56rem;color:var(--muted);margin-top:.1rem}
+.cust .sp{font-family:var(--hand);font-size:.6rem;color:var(--ink-2);margin-top:.18rem}
+.cust .sp b{font-family:var(--mono);font-size:.9em;color:var(--ink)}
+.cust .tag{position:absolute;top:-.55rem;right:.5rem;font-family:var(--hand);font-size:.48rem;letter-spacing:1px;
+  text-transform:uppercase;background:var(--amber);border:2px solid var(--ink);border-radius:var(--wobble-2);
+  padding:.04rem .4rem;color:var(--ink)}
+.stat .v .live{display:inline-block;width:.32em;height:.32em;border-radius:50%;background:var(--flame);
+  vertical-align:middle;margin-left:.2em;animation:blip 1.2s ease-in-out infinite}
 </style>
 </head>
 <body>
@@ -702,12 +733,110 @@ function sql(s, cls=''){
 }
 const tell = (k, v, cls='') => `<div class="tell ${cls}"><b>${k}</b><span>${v}</span></div>`;
 
+/* ---- ShopEasy: the logo, the customers, the storefront ---- */
+const LOGO_PATH = `<path d="M7 9h18l-1.6 17a2 2 0 0 1-2 1.8H10.6a2 2 0 0 1-2-1.8z" fill="var(--amber)" stroke="var(--ink)" stroke-width="2" stroke-linejoin="round"/>
+  <path d="M11.5 12V8a4.5 4.5 0 0 1 9 0v4" fill="none" stroke="var(--ink)" stroke-width="2" stroke-linecap="round"/>
+  <path d="M19 15.5c-.8-1-2-1.4-3.2-1.4-1.7 0-2.9.9-2.9 2.1 0 2.8 6.4 1.6 6.4 4.5 0 1.3-1.3 2.2-3.2 2.2-1.4 0-2.7-.5-3.5-1.5" fill="none" stroke="var(--ink)" stroke-width="1.9" stroke-linecap="round"/>`;
+const brand = (sub='') => `<span class="brand"><svg viewBox="0 0 32 32" aria-hidden="true">${LOGO_PATH}</svg>ShopEasy${sub?`<small>${sub}</small>`:''}</span>`;
+
+/* hand-drawn portraits in a 100×100 box */
+const PEOPLE = {
+  aarav:{name:'Aarav Sharma', skin:'#C98D62', hair:'#2A1C13', shirt:'var(--pencil)',  style:'short'},
+  diya: {name:'Diya Menon',   skin:'#B27650', hair:'#1D130E', shirt:'var(--flame)',   style:'long'},
+  rohan:{name:'Rohan Iyer',   skin:'#A46B45', hair:'#22170F', shirt:'var(--leaf)',    style:'curly', glasses:true}
+};
+function face(k){
+  const P = PEOPLE[k], ink = '#1C1A17';
+  let g = '';
+  if(P.style === 'long') g += `<path d="M27,42 C22,12 78,12 73,42 L78,82 C64,76 36,76 22,82 Z" fill="${P.hair}"/>`;
+  g += `<path d="M8,104 C8,76 28,68 50,68 C72,68 92,76 92,104 Z" fill="${P.shirt}" stroke="${ink}" stroke-width="2.4"/>
+    <rect x="43" y="58" width="14" height="13" fill="${P.skin}"/>
+    <ellipse cx="50" cy="42" rx="20" ry="23" fill="${P.skin}" stroke="${ink}" stroke-width="2.4"/>`;
+  if(P.style === 'short') g += `<path d="M29,40 C27,17 44,13 52,14 C67,14 75,23 71,40 C67,29 57,25 45,27 C38,28 32,33 29,40 Z" fill="${P.hair}"/>`;
+  if(P.style === 'long')  g += `<path d="M30,38 C33,20 67,18 70,38 C61,28 41,28 30,38 Z" fill="${P.hair}"/>
+    <circle cx="50" cy="31" r="1.8" fill="var(--flame)"/>`;
+  if(P.style === 'curly') [[33,28],[41,21],[50,19],[59,21],[67,28],[37,35],[64,35]].forEach(c =>
+      g += `<circle cx="${c[0]}" cy="${c[1]}" r="8" fill="${P.hair}"/>`);
+  g += `<circle cx="42" cy="43" r="2.3" fill="${ink}"/><circle cx="58" cy="43" r="2.3" fill="${ink}"/>
+    <path d="M43,53 Q50,58.5 57,53" fill="none" stroke="${ink}" stroke-width="2.2" stroke-linecap="round"/>`;
+  if(P.glasses) g += `<circle cx="42" cy="43" r="6.5" fill="none" stroke="${ink}" stroke-width="2"/>
+    <circle cx="58" cy="43" r="6.5" fill="none" stroke="${ink}" stroke-width="2"/><path d="M48.5,43 H51.5" stroke="${ink}" stroke-width="2"/>`;
+  return g;
+}
+const avatar = k => `<svg viewBox="0 0 100 100" aria-label="${PEOPLE[k].name}">${face(k)}</svg>`;
+
+/* customer cards: who they are, and (from step 1) what they bought this week */
+function custCards(st){
+  const C = [['aarav','Pune','since Apr 2023','2 orders · <b>₹10,698</b>',''],
+             ['diya','Kochi','since Nov 2022','1 order · <b>₹12,250</b>','top spender'],
+             ['rohan','Delhi','since Jan 2024','no orders yet this week','']];
+  return `<div class="custs">${C.map((c,i)=>`<div class="cust pop d${i+1}">
+      ${st>=1 && c[4] ? `<span class="tag pop">${c[4]}</span>` : ''}
+      <div class="av">${avatar(c[0])}</div>
+      <div><div class="nm">${PEOPLE[c[0]].name}</div><div class="mt">${c[1]} &middot; customer ${c[2]}</div>
+        ${st>=1 ? `<div class="sp pop">Black Friday week: ${c[3]}</div>` : ''}</div></div>`).join('')}</div>`;
+}
+
+/* the storefront on sale day, and the orders it pours into the database */
+function sceneSale(step){
+  let g = `<rect x="20" y="10" width="600" height="380" rx="6" class="box"/>
+    <path d="M20,44 H620" stroke="var(--ink)" stroke-width="2.4"/>
+    ${[44,64,84].map((x,i)=>`<circle cx="${x}" cy="27" r="6" fill="${['var(--flame)','var(--amber)','var(--leaf)'][i]}" stroke="var(--ink)" stroke-width="1.6" class="nofx"/>`).join('')}
+    <rect x="110" y="17" width="300" height="20" rx="10" fill="var(--paper-2)" stroke="var(--line)" stroke-width="1.6" class="nofx"/>
+    <text class="t-mono" x="124" y="32" style="font-size:13px">shopeasy.in/black-friday</text>
+    <g transform="translate(38,56) scale(1.25)">${LOGO_PATH}</g>
+    <text class="t-serif" x="84" y="86" style="font-size:30px">ShopEasy</text>
+    <text class="t-sub" x="600" y="84" text-anchor="end" style="font-size:15px">Electronics &middot; Home &middot; Kitchen &middot; Cart (3)</text>
+    <g class="sv-hot"><rect x="38" y="102" width="564" height="74" rx="4" fill="var(--flame)" stroke="var(--ink)" stroke-width="2.4"/></g>
+    <text class="t-big" x="58" y="146" style="fill:var(--on-flame);font-size:38px">BLACK FRIDAY SALE</text>
+    <text class="t-lbl" x="58" y="168" style="fill:var(--on-flame);font-size:16px">up to 70% off &middot; free delivery over ₹499</text>
+    <text class="t-lbl" x="584" y="134" text-anchor="end" style="fill:var(--on-flame);font-size:14px">ends in</text>
+    <text class="t-mono" x="584" y="160" text-anchor="end" style="fill:var(--on-flame);font-size:22px;font-weight:700">05:42:17</text>`;
+  const items = [
+    ['Wireless Earbuds Pro','₹1,499','₹4,999','-70%', `<circle cx="-14" cy="-6" r="11" fill="var(--pencil-soft)" stroke="var(--ink)" stroke-width="2.2"/><rect x="-18" y="2" width="7" height="20" rx="3" fill="var(--pencil-soft)" stroke="var(--ink)" stroke-width="2"/>
+       <circle cx="14" cy="-6" r="11" fill="var(--pencil-soft)" stroke="var(--ink)" stroke-width="2.2"/><rect x="11" y="2" width="7" height="20" rx="3" fill="var(--pencil-soft)" stroke="var(--ink)" stroke-width="2"/>`],
+    ['Cotton Bedsheet Set','₹4,501','₹8,999','-50%', `<rect x="-30" y="-14" width="60" height="14" rx="3" fill="var(--amber-soft)" stroke="var(--ink)" stroke-width="2.2"/><rect x="-30" y="0" width="60" height="14" rx="3" fill="var(--pencil-soft)" stroke="var(--ink)" stroke-width="2.2"/>
+       <rect x="-30" y="14" width="60" height="12" rx="3" fill="var(--leaf-soft)" stroke="var(--ink)" stroke-width="2.2"/>`],
+    ['Steel Water Bottle','₹4,083','₹5,999','-32%', `<rect x="-7" y="-26" width="14" height="9" rx="2" fill="var(--ink)" stroke="var(--ink)" stroke-width="2"/><rect x="-14" y="-17" width="28" height="46" rx="9" fill="var(--paper-2)" stroke="var(--ink)" stroke-width="2.2"/>
+       <path d="M-14,0 H14" stroke="var(--pencil)" stroke-width="3"/>`]];
+  items.forEach((it, i) => {
+    const x = 38 + i*192;
+    g += `<g class="sv-rise" ${D(150 + i*120)}>
+      <rect x="${x}" y="192" width="180" height="184" rx="4" fill="var(--card)" stroke="var(--ink)" stroke-width="2.2"/>
+      <g transform="translate(${x+90},244)">${it[4]}</g>
+      <rect x="${x+122}" y="200" width="50" height="24" rx="4" fill="var(--amber)" stroke="var(--ink)" stroke-width="1.8" class="nofx"/>
+      <text class="t-lbl" x="${x+147}" y="218" text-anchor="middle" style="font-size:15px">${it[3]}</text>
+      <text class="t-lbl" x="${x+12}" y="300" style="font-size:16px">${it[0]}</text>
+      <text class="t-serif" x="${x+12}" y="330" style="font-size:24px">${it[1]}</text>
+      <text class="t-sub" x="${x+92}" y="329" style="font-size:14px;text-decoration:line-through">${it[2]}</text>
+      <rect x="${x+12}" y="342" width="156" height="24" rx="5" fill="var(--leaf)" stroke="var(--ink)" stroke-width="1.8" class="nofx"/>
+      <text class="t-lbl" x="${x+90}" y="359" text-anchor="middle" style="fill:#fff;font-size:14px">Add to cart</text></g>`;
+  });
+  if(step >= 2){
+    g += wire('M620,200 C700,200 700,160 780,160', {packets:4, dur:1.1, color:'var(--flame)', r:6});
+    g += wire('M620,300 C700,300 700,240 780,240', {packets:3, dur:1.3, color:'var(--flame)', r:6, delay:.3});
+    g += `<g class="sv-pop">
+      <ellipse cx="880" cy="120" rx="95" ry="22" fill="var(--pencil-soft)" stroke="var(--ink)" stroke-width="2.4"/>
+      <path d="M785,120 V290 C785,302 828,312 880,312 C932,312 975,302 975,290 V120" fill="var(--pencil-soft)" stroke="var(--ink)" stroke-width="2.4"/>
+      <path d="M785,175 C785,187 828,197 880,197 C932,197 975,187 975,175 M785,232 C785,244 828,254 880,254 C932,254 975,244 975,232" fill="none" stroke="var(--ink)" stroke-width="1.8"/>
+      <text class="t-serif" x="880" y="160" text-anchor="middle" style="font-size:26px">orders</text>
+      <text class="t-lbl" x="880" y="224" text-anchor="middle" style="font-size:17px">20,000,000 rows</text>
+      <text class="t-lbl sv-blip" x="880" y="282" text-anchor="middle" style="font-size:16px;fill:var(--flame-ink)">+3,200 a minute</text></g>
+      <text class="t-sub sv-fade" x="880" y="346" text-anchor="middle" style="font-size:15px">every order is a row the</text>
+      <text class="t-sub sv-fade" x="880" y="366" text-anchor="middle" style="font-size:15px">dashboard has to read</text>`;
+  }
+  return SV('0 0 1000 395', g);
+}
+
 /* ---- the dashboard that stopped loading ---- */
 function sceneTimeout(step){
   let g = `<rect x="30" y="20" width="420" height="250" rx="4" class="box"/>
-    <text class="t-serif" x="240" y="60" text-anchor="middle" style="font-size:25px">Top Customers This Month</text>
+    <g transform="translate(46,34) scale(.9)">${LOGO_PATH}</g>
+    <text class="t-sub" x="78" y="54" style="font-size:14px">ShopEasy &middot; Marketing</text>
+    <text class="t-serif" x="428" y="58" text-anchor="end" style="font-size:24px">Top Customers This Month</text>
     <path d="M52,76 H428" stroke="var(--line)" stroke-width="2"/>`;
-  [0,1,2].forEach(i => g += `<rect x="70" y="${96+i*22}" width="${200-i*40}" height="10" rx="3" fill="var(--line)" class="nofx"/>`);
+  ['diya','aarav','rohan'].forEach((k,i) => g += `<g opacity=".55"><svg x="62" y="${84+i*30}" width="26" height="26" viewBox="0 0 100 100">${face(k)}</svg>
+      <rect x="98" y="${93+i*30}" width="${190-i*40}" height="10" rx="3" fill="var(--line)" class="nofx"/></g>`);
   if(step < 1){
     g += `<circle cx="240" cy="200" r="30" fill="none" stroke="var(--pencil-2)" stroke-width="6"
             stroke-dasharray="130 60" stroke-linecap="round" class="sv-spin nofx"/>
@@ -1161,7 +1290,7 @@ const quizSteps = (qs, intro) => qs.flatMap((q,i) => [
    opens with the segment card from the lecture.
    ===================================================================== */
 const CHAPTERS = [
- {n:1, t:'The dashboard that died',        of:['title','problem','scenario','model','rows','path']},
+ {n:1, t:'The dashboard that died',        of:['title','problem','scenario','sale','model','rows','path']},
  {n:2, t:'Meet the planner',               of:['levels','planner','samerows']},
  {n:3, t:'Reading the execution plan',     of:['explain','node','smells','vocab','before','quiz2']},
  {n:4, t:'The free wins',                  of:['t1','t2','t3','t4','t5','t6','quiz3']},
@@ -1238,7 +1367,7 @@ const DECK = [
   {note:'Open on the promise, not the technique. Everyone here has written SQL that was fine on a laptop. Today we take one query that died in production and make it fast — and we are not allowed to change a single row of data.'},
   {note:'This is the whole lecture in one line. Thirty seconds to milliseconds, and the result set never changes. Hold them to that rule all session.'}],
   body:(st)=>`<div class="hero">
-    <div class="by">in PostgreSQL</div>
+    <div class="brand-row"><span class="by">in PostgreSQL &middot; case study</span>${brand()}<span class="sticker">Black Friday</span></div>
     <div class="big">Make the <em>slow query</em><br>fast.</div>
     <div class="sub">Without changing the data. Same rows out, same result &mdash; we only change how we ask for them.</div>
     ${st>=1?`<div class="race pop"><span class="from">30,000 ms</span><span class="arr">&rarr;</span><span class="to">milliseconds</span></div>`:''}
@@ -1262,6 +1391,7 @@ const DECK = [
   {note:'And the goal, stated as a number: from 30,000 milliseconds to milliseconds.'}],
   body:(st)=>`<div class="two wl">
     <div class="stack">
+      <div class="brand-row">${brand('fast-growing online store')}</div>
       <p class="lede">You just joined <b>ShopEasy</b>, a fast-growing online store, as its <b>database engineer</b>.
         It's Black Friday. The <b>"Top Customers This Month"</b> dashboard is timing out.</p>
       ${st>=1?`<div class="chat pop"><span class="av">M</span><div class="bub"><div class="who">Manager · 11:58</div>
@@ -1271,6 +1401,21 @@ const DECK = [
       ${st>=2?`<div class="pop">${card('The one rule','Same rows out. Same result.','We only change <b>how we ask</b> for them — the SQL text and the indexes.','good',ico('shield'))}</div>`:''}
       ${st>=3?`<div class="race pop" style="font-size:1.5rem"><span class="from">30,000 ms</span><span class="arr">&rarr;</span><span class="to">milliseconds</span></div>`:''}
     </div></div>` },
+
+{ id:'sale', kick:'the practical part — what the database is living through', eyebrow:'ShopEasy · Black Friday, live', title:'The sale that broke the dashboard',
+  tag:'story', steps:[
+  {note:'Make it real. This is ShopEasy\'s storefront this morning: Black Friday, up to seventy percent off, the countdown running. Earbuds at fourteen ninety-nine, bedsheets, bottles — the same products we will meet in the data.'},
+  {note:'And the numbers behind the banner. About one lakh eighty-four thousand orders today — ten times a normal day. A peak of thirty-two hundred orders a minute, fifty-eight thousand people online, and forty-two crore rupees of sales.'},
+  {note:'Every one of those orders is a new row in the orders table. Twenty million rows and climbing, three thousand more every minute.'},
+  {note:'And the report marketing is staring at to decide which offers to push — Top Customers This Month — has to read those rows. That is the query that is timing out. Same SQL as last month; ten times the traffic.'}],
+  body:(st)=>`<div class="stage-row">${sceneSale(st)}</div>
+    ${st>=1?`<div class="stats pop" style="--n:4">
+      <div class="stat warn"><div class="k">Orders today<span class="live"></span></div><div class="v">1,84,320</div><div class="s">10&times; a normal day</div></div>
+      <div class="stat warn"><div class="k">Peak</div><div class="v">3,200<span style="font-size:.5em">/min</span></div><div class="s">orders per minute at 11:00</div></div>
+      <div class="stat"><div class="k">Customers online</div><div class="v">58,400</div><div class="s">across 214 cities</div></div>
+      <div class="stat good"><div class="k">Sales today</div><div class="v">₹42.6 Cr</div><div class="s">avg. order ₹2,311</div></div>
+    </div>`:''}
+    ${st>=3?tell('The catch','marketing\'s <b>Top Customers This Month</b> report reads every one of these rows &mdash; and it just timed out.','warn'):''}` },
 
 { id:'model', kick:'and the sizes matter', eyebrow:'The data model', title:'Four tables',
   tag:'data', steps:[
@@ -1284,13 +1429,13 @@ const DECK = [
 
 { id:'rows', kick:'the rows we follow all lecture', eyebrow:'The data model', title:'Meet Aarav, Diya and Rohan',
   tag:'data', steps:[
-  {note:'Three real-looking customers. Customer 1024, Aarav from Pune, is the one we will keep querying.'},
-  {note:'Their orders. Notice 1024 has two of them — Black Friday week.'},
+  {note:'Meet three ShopEasy customers. Aarav from Pune, Diya from Kochi, Rohan from Delhi. Customer 1024, Aarav, is the one we will keep querying all lecture.'},
+  {note:'Their orders. Aarav placed two in Black Friday week, Diya one big one — she is this month\'s top spender so far. These are exactly the rows the dashboard is trying to rank.'},
   {note:'Order items and products close the loop: what was in each order, and what each product is.'}],
   body:(st)=>{
     const t = (name, head, rows, hl=[]) => `<div class="dt pop"><h5>${name}</h5><table><tr>${head.map(h=>`<th>${h}</th>`).join('')}</tr>
       ${rows.map((r,i)=>`<tr class="${hl.includes(i)?'hl':''}">${r.map(c=>`<td>${c}</td>`).join('')}</tr>`).join('')}</table></div>`;
-    return `<div class="dts">
+    return `${custCards(st)}<div class="dts">
       ${t('customers',['customer_id','name','city','created_at'],[['1024','Aarav Sharma','Pune','2023-04-12'],['2087','Diya Menon','Kochi','2022-11-03'],['3391','Rohan Iyer','Delhi','2024-01-27']],[0])}
       ${st>=1?t('orders',['order_id','cust_id','order_date','status','total'],[['880231','1024','2025-11-28','delivered','₹7,499'],['880232','2087','2025-11-28','shipped','₹12,250'],['880233','1024','2025-11-29','pending','₹3,199']],[0,2]):''}
       ${st>=2?t('order_items',['item_id','order_id','product_id','qty','unit_price'],[['50011','880231','7712','2','₹1,499'],['50012','880231','4410','1','₹4,501'],['50013','880232','9930','3','₹4,083']]):''}

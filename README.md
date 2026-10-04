@@ -30,8 +30,8 @@ shows the file on disk.
 | `+` / `−` / `0` | type size, for the room you are in |
 | `Home` / `End` | first / last slide |
 
-215 pages — every step counts as its own page, and the counter in the rail
-runs `page 1 / 215` to `page 215 / 215`. Notes are written for speaking aloud,
+219 pages — every step counts as its own page, and the counter in the rail
+runs `page 1 / 219` to `page 219 / 219`. Notes are written for speaking aloud,
 one per page.
 
 ## Structure: it is a story
@@ -60,6 +60,8 @@ answer only on the next step, so the room answers before the deck does.
 | Scene | Motion |
 |-------|--------|
 | The dashboard | A spinner that becomes a 30,000 ms timeout; laptop vs production bars |
+| The sale | ShopEasy's Black Friday storefront (banner, countdown, three products), then live sale numbers, then orders pouring into a 20M-row `orders` table |
+| The customers | Hand-drawn portraits of Aarav, Diya and Rohan with their Black Friday orders; "top spender" tag |
 | Data model | Four tables drawn to scale by row count — products is a sliver, order_items towers |
 | Today's path | Four stops appear along a road; a query packet travels it end to end |
 | Faster road | The planner's winding route vs a straight road to the same house |
@@ -93,7 +95,7 @@ paper with keywords weighted; the wrong part of a bad query is outlined in
 flame, the fix highlighted in amber. Warm dark mode on `T`.
 
 A slide never scrolls: an inner wrapper scales the step down if it would not
-fit. Checked by walking all 215 steps with no errors.
+fit. Checked by walking all 219 steps with no errors.
 
 ## Source
 
