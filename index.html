@@ -634,6 +634,25 @@ text{font-family:var(--hand)}
   color:var(--leaf);background:var(--leaf-soft);border:2px solid var(--leaf);border-radius:var(--wobble-2);padding:.08rem .55rem}
 .smell .fix code{font-size:.85em;background:transparent;border:none;padding:0;color:inherit}
 @media (max-width:980px){.smells{grid-template-columns:1fr}}
+/* the same card, reused everywhere as a "tile" */
+.smell.tl::after{background:var(--pencil-2)} .smell.tl .no{background:var(--pencil-2);color:#fff}
+.smell.pp::after{background:var(--amber-2)} .smell.pp .no{background:var(--amber);color:var(--ink)}
+.smell .pic.ic{height:2.9rem;align-items:center}
+.smell .pic.ic svg{width:2.5rem;height:2.5rem;color:var(--ink)}
+.smell.good .pic.ic svg{color:var(--leaf)} .smell.tl .pic.ic svg{color:var(--pencil-2)} .smell:not(.good):not(.tl):not(.pp) .pic.ic svg{color:var(--flame)}
+.smell .code{font-family:var(--mono);font-size:.5rem;line-height:1.35;color:var(--ink);background:var(--paper-2);border:1.5px solid var(--line);
+  border-radius:6px;padding:.2rem .45rem;text-align:left;white-space:pre-wrap;max-width:100%}
+.smell .code b{color:var(--pencil-2)}
+.smell .fix.bad{color:var(--flame-ink);background:var(--flame-soft);border-color:var(--flame)}
+.smell .fix.note{color:var(--ink);background:var(--amber-soft);border-color:var(--amber-2)}
+.smells.tight .pic{height:2.6rem} .smells.tight .nm{font-size:1.12rem} .smells.tight .means{font-size:.76rem}
+.oneline{display:flex;justify-content:center}
+.chipln{display:inline-flex;align-items:center;gap:.3rem;font-family:var(--hand);font-weight:600;font-size:.8rem;
+  color:var(--leaf);background:var(--leaf-soft);border:2px solid var(--leaf);border-radius:var(--wobble-2);padding:.15rem .75rem;box-shadow:var(--shadow-sm)}
+.chipln.bad{color:var(--flame-ink);background:var(--flame-soft);border-color:var(--flame)}
+.chipln.note{color:var(--ink);background:var(--amber-soft);border-color:var(--amber-2)}
+.chipln code{font-size:.85em}
+
 </style>
 </head>
 <body>
@@ -1294,6 +1313,39 @@ function sceneVictory(step){
    Deck — Query-Level Optimization in PostgreSQL
    Content follows the lecture deck; each slide adds an animated scene.
    ===================================================================== */
+/* ---- tiles: title · picture · one line · one chip (the plan-smell style) ---- */
+const TA = `<defs><marker id="tA" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--ink)"/></marker></defs>`;
+const tb = (x,y,w,h,f='var(--card)') => `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="2" fill="${f}" stroke="var(--ink)" stroke-width="1.6"/>`;
+const tt = (x,y,t,o='') => `<text x="${x}" y="${y}" text-anchor="middle" style="font-family:var(--hand);font-size:11px;${o}">${t}</text>`;
+const PIC = {
+  plan:    `${tb(42,4,36,14,'var(--pencil-soft)')}${tb(20,40,32,14)}${tb(68,40,32,14)}<path d="M60,18 L36,40 M60,18 L84,40" stroke="var(--ink)" stroke-width="1.6"/>`,
+  watch:   `<circle cx="60" cy="33" r="21" fill="var(--amber-soft)" stroke="var(--ink)" stroke-width="2"/><rect x="55" y="5" width="10" height="6" rx="1" fill="var(--ink)"/><path d="M60,33 L60,19 M60,33 L70,39" stroke="var(--ink)" stroke-width="2.4" stroke-linecap="round"/>`,
+  cache:   `${tb(6,12,44,36,'var(--leaf-soft)')}${tt(28,34,'cache')}<ellipse cx="94" cy="16" rx="20" ry="6" fill="var(--flame-soft)" stroke="var(--ink)" stroke-width="1.6"/><path d="M74,16 V44 C74,48 83,52 94,52 C105,52 114,48 114,44 V16" fill="var(--flame-soft)" stroke="var(--ink)" stroke-width="1.6"/>${tt(94,38,'disk')}${tt(61,34,'vs','fill:var(--muted)')}`,
+  loop:    `${tb(6,22,28,18)}${tb(86,22,28,18,'var(--pencil-soft)')}${[0,1,2].map(i=>`<path d="M34,${27+i*4} C55,${10+i*5} 66,${10+i*5} 86,${27+i*4}" fill="none" stroke="var(--pencil-2)" stroke-width="1.6" stroke-dasharray="4 3"/>`).join('')}${tt(60,56,'one by one','fill:var(--muted)')}`,
+  hash:    `${tb(4,20,30,22)}<path d="M34,31 H50" stroke="var(--ink)" stroke-width="1.8" marker-end="url(#tA)"/>${[0,1,2,3].map(i=>tb(56+i*15,22,12,18,i===2?'var(--amber)':'var(--pencil-soft)')).join('')}${tt(82,56,'build, then probe','fill:var(--muted)')}`,
+  merge:   `${[0,1,2,3].map(i=>tb(10,6+i*12,30,8,'var(--pencil-soft)')+tb(80,6+i*12,30,8,'var(--pencil-soft)')).join('')}<path d="M42,30 H78" stroke="var(--ink)" stroke-width="1.8"/>${tt(60,24,'zip','fill:var(--muted)')}`,
+  funnel:  `${[...Array(6)].map((_,i)=>tb(4,4+i*9,24,6,'var(--pencil-soft)')).join('')}<path d="M32,30 H48" stroke="var(--ink)" stroke-width="1.8" marker-end="url(#tA)"/><path d="M52,8 L92,8 L78,30 L78,48 L66,54 L66,30 Z" fill="var(--card)" stroke="var(--ink)" stroke-width="1.8"/>${tb(98,38,18,10,'var(--leaf)')}${tt(107,30,'20','fill:var(--leaf)')}`,
+  nodex:   `${tb(28,4,64,18,'var(--flame-soft)')}${tt(60,17,'HashAggregate')}${tb(28,38,64,18)}${tt(60,51,'Seq Scan')}<path d="M60,22 V38" stroke="var(--ink)" stroke-width="1.6"/><path d="M22,0 L98,26 M98,0 L22,26" stroke="var(--flame)" stroke-width="3" stroke-linecap="round"/>`,
+  push:    `${tb(10,6,100,48,'var(--pencil-soft)')}${tt(60,22,'WITH … AS ( … )')}<path d="M60,58 V34" stroke="var(--leaf)" stroke-width="2.4" marker-end="url(#tA)"/>${tt(86,48,'WHERE','fill:var(--leaf)')}`,
+  store:   `${tb(6,18,40,26,'var(--amber)')}${tt(26,35,'once')}<path d="M48,24 L72,12 M48,38 L72,50" stroke="var(--ink)" stroke-width="1.8" marker-end="url(#tA)"/>${tb(76,4,38,16)}${tt(95,16,'use 1')}${tb(76,42,38,16)}${tt(95,54,'use 2')}`,
+  copies:  `${tb(6,4,44,20,'var(--pencil-soft)')}${tt(28,18,'compute')}${tb(6,36,44,20,'var(--pencil-soft)')}${tt(28,50,'compute')}<path d="M52,14 H76 M52,46 H76" stroke="var(--ink)" stroke-width="1.8" marker-end="url(#tA)"/>${tb(80,4,34,20)}${tt(97,18,'use 1')}${tb(80,36,34,20)}${tt(97,50,'use 2')}`,
+  key:     `<circle cx="36" cy="30" r="13" fill="var(--amber)" stroke="var(--ink)" stroke-width="2"/><circle cx="36" cy="30" r="4" fill="var(--card)" stroke="var(--ink)" stroke-width="1.6"/><path d="M49,30 H96 M84,30 V40 M94,30 V38" stroke="var(--ink)" stroke-width="3" stroke-linecap="round"/>`,
+  slice:   `<rect x="6" y="20" width="108" height="20" rx="3" fill="var(--pencil-soft)" stroke="var(--ink)" stroke-width="1.6"/><rect x="74" y="20" width="12" height="20" fill="var(--amber)" stroke="var(--ink)" stroke-width="1.6"/>${tt(80,54,'only these','fill:var(--muted)')}`,
+  lower:   `${tb(10,18,100,24,'var(--leaf-soft)')}<text x="60" y="35" text-anchor="middle" style="font-family:var(--mono);font-size:11px">LOWER(email)</text>${tt(60,56,'indexed as written','fill:var(--muted)')}`,
+  carry:   `${tb(6,18,52,24)}<text x="32" y="34" text-anchor="middle" style="font-family:var(--mono);font-size:9px">cust 1024</text>${tb(58,18,52,24,'var(--leaf-soft)')}<text x="84" y="34" text-anchor="middle" style="font-family:var(--mono);font-size:9px">₹7,499</text>${tt(60,56,'value rides along','fill:var(--muted)')}`,
+  sorted:  `${[0,1,2,3,4].map(i=>tb(14+i*20,40-i*7,16,10+i*7,'var(--pencil-soft)')).join('')}${tt(60,58,'already in order','fill:var(--muted)')}`,
+  fk:      `${tb(4,18,38,24)}${tt(23,34,'orders')}${tb(78,18,38,24,'var(--pencil-soft)')}${tt(97,34,'customers')}<path d="M42,30 H76" stroke="var(--flame)" stroke-width="2" stroke-dasharray="4 3" marker-end="url(#tA)"/>${tt(60,14,'FK','fill:var(--flame-ink)')}`,
+  few:     `${[...Array(10)].map((_,i)=>tb(4+i*11.4,22,9,16,i===6?'var(--amber)':'var(--card)')).join('')}${tt(60,54,'a small slice','fill:var(--muted)')}`
+};
+const tile = t => `<div class="smell pop ${t.cls||''}">
+    <div class="hd">${t.n!=null?`<span class="no">${t.n}</span>`:''}<span class="nm">${t.t}</span></div>
+    ${t.pic?`<div class="pic"><svg viewBox="0 0 120 60" aria-hidden="true">${TA}${PIC[t.pic]||t.pic}</svg></div>`:t.ico?`<div class="pic ic">${ico(t.ico)}</div>`:''}
+    ${t.code?`<div class="code">${t.code}</div>`:''}
+    ${t.l?`<div class="means">${t.l}</div>`:''}
+    ${t.c?`<span class="fix ${t.cc||''}">${t.c}</span>`:''}</div>`;
+const tiles = (arr, st, cols=3, cls='') => `<div class="smells ${cls}" style="grid-template-columns:repeat(${cols},minmax(0,1fr))">${arr.map((t,i)=> st>=(t.at!=null?t.at:i) ? tile(t) : '').join('')}</div>`;
+const oneline = (c, cc='') => `<div class="oneline pop"><span class="chipln ${cc}">${c}</span></div>`;
+
 const card = (k,t,p,cls='',ico='') =>
   `<div class="card ${cls}">${ico?`<span class="ico">${ico}</span>`:''}
      <h4>${k}</h4><h3>${t}</h3><p>${p}</p></div>`;
@@ -1519,13 +1571,11 @@ WHERE total_amount > 5000;`)}</div>`:'<div></div>'}</div>
   {note:'EXPLAIN ANALYZE actually runs the query and reports real timings and real row counts, alongside the estimates.'},
   {note:'EXPLAIN (ANALYZE, BUFFERS) also shows how many data pages came from cache versus disk.'},
   {note:'The caveat, and say it twice. ANALYZE truly executes. Never run it on an UPDATE or DELETE unless it is wrapped in a transaction you roll back.'}],
-  body:(st)=>`<div class="cards" style="grid-template-columns:repeat(3,minmax(0,1fr))">
-      <div class="pop">${card('The estimate','EXPLAIN','Fast. Does <b>not</b> run the query — shows the plan it would use.','tl',ico('search'))}</div>
-      ${st>=1?`<div class="pop">${card('Estimate + reality','EXPLAIN ANALYZE','Actually runs the query; real timings and real row counts beside the estimates.','pp',ico('gauge'))}</div>`:''}
-      ${st>=2?`<div class="pop">${card('+ cache vs disk','(ANALYZE, BUFFERS)','Also shows how many data pages came from cache vs. were fetched from disk.','good',ico('db'))}</div>`:''}
-    </div>
-    ${st>=1?sql(`EXPLAIN ANALYZE SELECT * FROM orders WHERE total_amount > 5000;`):''}
-    ${st>=3?tell('Caveat','ANALYZE truly executes. Never run it on an <code>UPDATE</code> / <code>DELETE</code> unless wrapped in a transaction you roll back.','warn'):''}` },
+  body:(st)=>`${tiles([
+      {t:'EXPLAIN', pic:'plan', l:'Shows the plan. <b>Runs nothing.</b>', c:'fast &amp; safe', cls:'tl', cc:'note'},
+      {t:'EXPLAIN ANALYZE', pic:'watch', l:'<b>Runs it</b>: real time, real rows', c:'the truth', cls:'pp', cc:'note'},
+      {t:'+ BUFFERS', pic:'cache', l:'Pages from <b>cache</b> or <b>disk</b>', c:'spot slow I/O', cls:'good'}], st)}
+    ${st>=3?oneline('&#9888; ANALYZE really runs it &mdash; wrap <code>UPDATE</code>/<code>DELETE</code> in <code>BEGIN … ROLLBACK</code>','bad'):''}` },
 
 { id:'node', kick:'how to read a node', eyebrow:'Define', title:'Anatomy of one plan node',
   tag:'explain', steps:[
@@ -1625,12 +1675,10 @@ WHERE total_amount > 5000;`)}</div>`:'<div></div>'}</div>
           <span style="display:block;height:.6rem;width:${s[2]}%;background:${s[3]};border:2px solid var(--ink);border-radius:3px"></span></div>`:'').join('')}
         <div class="verdict" style="color:var(--muted)">scan types &mdash; slow &rarr; fast (bar = work)</div>
       </div>
-      ${st>=4?`<div class="stack pop">
-        ${card('Join','Nested Loop','Small sets, or an indexed inner side.','tl')}
-        ${card('Join','Hash Join','Large, unsorted sets.','pp')}
-        ${card('Join','Merge Join','Both inputs already sorted.','good')}
-        <p class="lede" style="font-size:.72rem">The planner picks the join from the shape and size of its inputs &mdash; <b>indexes change that shape</b>.</p>
-      </div>`:'<div></div>'}</div>`; } },
+      ${st>=4?`<div class="stack pop">${tiles([
+        {t:'Nested Loop', pic:'loop', l:'Few rows, or an indexed inner side', cls:'tl', at:0},
+        {t:'Hash Join',   pic:'hash', l:'Big, unsorted sets', cls:'pp', at:0},
+        {t:'Merge Join',  pic:'merge', l:'Both sides already sorted', cls:'good', at:0}], 9, 1, 'tight')}</div>`:'<div></div>'}</div>`; } },
 
 { id:'before', kick:'apply · our scenario', eyebrow:'Our "before" picture', title:'Every row read. Almost all thrown away.',
   tag:'apply', steps:[
@@ -1741,11 +1789,10 @@ FROM orders
 WHERE customer_id = 1024
 ORDER BY order_date DESC
 [[LIMIT 20]];`,'lg')}</div>
-      <div class="stack">
-        <div class="pop">${card('Why','Show 20, read 20','If you show 20 rows, don\'t sort and materialize millions. With a matching index the planner reads just the first 20.','good',ico('bolt'))}</div>
-        ${st>=1?`<div class="pop">${card('And','Drop needless DISTINCT','A needless <code>DISTINCT</code> can add a whole sort / hash-aggregate node. Remove it and the node disappears.','warn',ico('trash'))}</div>`:''}
-      </div></div>
-    ${st>=2?tell('Plan tell','a <b>Sort</b> over millions shrinks or vanishes; the top node\'s actual rows drops to <b>20</b>.'):''}` },
+      ${tiles([
+        {t:'Show 20, read 20', pic:'funnel', l:'Don\'t sort <b>millions</b> to show twenty', c:'&rarr; add <code>LIMIT</code>', cls:'good'},
+        {t:'Needless DISTINCT', pic:'nodex', l:'Rows already unique? A wasted node', c:'&rarr; drop it', cls:'pp'}], st, 1, 'tight')}</div>
+    ${st>=2?oneline('Plan tell: the <b>Sort</b> shrinks or vanishes &mdash; top node returns <b>20</b> rows'):''}` },
 
 { id:'t6', kick:'trick 6 · keep statistics fresh', eyebrow:'Trick 6 of 6', title:'A good plan needs good estimates',
   tag:'trick', steps:[
@@ -1821,13 +1868,12 @@ ORDER BY ct.spent DESC LIMIT 20;`,'sm')}
   {note:'AS MATERIALIZED: compute the block once, store the result, reuse it. Great when the block is expensive and referenced two or more times.'},
   {note:'AS NOT MATERIALIZED: force inlining even when it is referenced several times, so the planner can push filters and joins inside. The price: the block is computed once per reference — measured live, a CTE used twice took twice as long inlined.'},
   {note:'Rule of thumb: inline for the planner\'s freedom; materialize only when an expensive block is genuinely reused.'}],
-  body:(st)=>`<p class="lede">Referenced <b>once</b>, a CTE is <b>inlined</b> by default &mdash; folded into the main query so the planner can optimize across it (e.g. push filters down). Referenced <b>2+ times</b>, it is materialized by default.</p>
-    <div class="cards" style="grid-template-columns:1fr 1fr">
-      ${st>=1?`<div class="pop">${card('Compute once','AS MATERIALIZED','Compute the block <b>once</b>, store the result, reuse it. Great when the block is expensive and referenced 2+ times.','pp',ico('layers'))}</div>`:''}
-      ${st>=2?`<div class="pop">${card('Force inlining','AS NOT MATERIALIZED','Force inlining even when referenced multiple times, so the planner can push filters and joins inside &mdash; at the cost of computing it once per reference.','tl',ico('route'))}</div>`:''}
-    </div>
+  body:(st)=>`${tiles([
+      {t:'Used once', pic:'push', l:'<b>Inlined</b>: filters push inside', c:'the default', cls:'good'},
+      {t:'MATERIALIZED', pic:'store', l:'Compute <b>once</b>, reuse the result', c:'used 2+ times', cls:'pp', cc:'note'},
+      {t:'NOT MATERIALIZED', pic:'copies', l:'Copied into <b>every</b> use', c:'rarely needed', cls:'tl', cc:'note'}], st)}
     ${st>=1?sql(`WITH customer_totals AS [[MATERIALIZED]] ( ... )   -- or: AS NOT MATERIALIZED`):''}
-    ${st>=3?tell('Rule of thumb','inline for the planner\'s freedom; materialize only when an expensive block is genuinely reused.'):''}` },
+    ${st>=3?oneline('Rule of thumb: inline by default &mdash; materialize only an expensive block you reuse'):''}` },
 
 { id:'trap', kick:'evaluate · when CTEs hurt', eyebrow:'The materialization trap', title:'A wall the filter can\'t cross',
   tag:'cte', steps:[
@@ -1929,16 +1975,11 @@ SELECT * FROM all_orders WHERE order_id = 42;                -- filter can't pus
   {note:'Partial: indexes only the rows that match a condition. Only pending orders — smaller and faster.'},
   {note:'Expression: indexes an expression. This is the fix for the LOWER trap from trick 2.'},
   {note:'Covering, with INCLUDE: carries extra columns in the index so the query is answered from the index alone — an Index Only Scan.'}],
-  body:(st)=>{
-    const S = [['Unique','Enforces uniqueness & speeds lookups — e.g. email.',`CREATE UNIQUE INDEX ON customers (email);`,'tl'],
-               ['Partial','Indexes only rows matching a condition — smaller & faster.',`CREATE INDEX ON orders (order_date)
-WHERE status = 'pending';`,'pp'],
-               ['Expression','Indexes an expression — fixes the LOWER() trap.',`CREATE INDEX ON customers (LOWER(email));`,'good'],
-               ['Covering (INCLUDE)','Carries extra columns so the query is answered from the index alone → Index-Only Scan.',`CREATE INDEX ON orders (customer_id)
-INCLUDE (total_amount);`,'good']];
-    return `<div class="cards" style="grid-template-columns:1fr 1fr">
-      ${S.map((s,i)=> st>=i ? `<div class="pop"><div class="card ${s[3]}"><h4>Shape ${i+1}</h4><h3>${s[0]}</h3><p>${s[1]}</p>
-        <div style="margin-top:.35rem">${sql(s[2],'sm')}</div></div></div>`:'').join('')}</div>`; } },
+  body:(st)=>tiles([
+      {t:'Unique',     pic:'key',   l:'No duplicates, fast lookup', code:'<b>CREATE UNIQUE INDEX</b> ON customers (email);', cls:'tl'},
+      {t:'Partial',    pic:'slice', l:'Index <b>only</b> the rows you query', code:"<b>CREATE INDEX</b> ON orders (order_date)\n  <b>WHERE</b> status = 'pending';", cls:'pp'},
+      {t:'Expression', pic:'lower', l:'Fixes the <b>LOWER()</b> trap', code:'<b>CREATE INDEX</b> ON customers (LOWER(email));', cls:'good'},
+      {t:'Covering',   pic:'carry', l:'Answer from the index <b>alone</b>', code:'<b>CREATE INDEX</b> ON orders (customer_id)\n  <b>INCLUDE</b> (total_amount);', cls:'good'}], st, 2, 'tight') },
 
 { id:'whenidx', kick:'5.2 · when to use them', eyebrow:'Index these', title:'— and verify the plan',
   tag:'index', steps:[
@@ -1946,12 +1987,11 @@ INCLUDE (total_amount);`,'good']];
   {note:'Join keys — foreign keys like orders.customer_id and order_items.order_id. A very common miss: PostgreSQL does not index foreign keys for you.'},
   {note:'ORDER BY and GROUP BY columns — an index supplies pre-sorted rows and deletes a Sort node.'},
   {note:'And always verify. After creating it, re-run EXPLAIN. The node should change to an Index, Index Only or Bitmap scan and the time should drop — or the planner correctly ignored it.'}],
-  body:(st)=>`<div class="cards" style="grid-template-columns:repeat(3,minmax(0,1fr))">
-      <div class="pop">${card('Selective WHERE','Small fraction','Selectivity is everything: <code>status</code> (95% delivered) is nearly useless; <code>email</code> (unique) is ideal.','good',ico('search'))}</div>
-      ${st>=1?`<div class="pop">${card('Join keys','Foreign keys','<code>orders.customer_id</code>, <code>order_items.order_id</code>. A very common miss.','tl',ico('route'))}</div>`:''}
-      ${st>=2?`<div class="pop">${card('ORDER BY / GROUP BY','Pre-sorted rows','An index supplies rows already in order and deletes a Sort node.','pp',ico('layers'))}</div>`:''}
-    </div>
-    ${st>=3?tell('Always verify','after creating, <b>re-EXPLAIN</b>. The node should change to Index / Index-Only / Bitmap Scan and time should drop &mdash; or the planner correctly ignored it.','note'):''}` },
+  body:(st)=>`${tiles([
+      {t:'Selective filters', pic:'few', l:'The WHERE keeps a <b>small slice</b>', c:'email &check; &nbsp; status &#10005;', cls:'good', cc:'note'},
+      {t:'Join keys', pic:'fk', l:'Foreign keys are <b>not</b> indexed for you', c:'orders.customer_id', cls:'tl', cc:'note'},
+      {t:'ORDER BY / GROUP BY', pic:'sorted', l:'Rows come <b>pre-sorted</b>', c:'no Sort node', cls:'pp'}], st)}
+    ${st>=3?oneline('Then <b>re-EXPLAIN</b>: did the node change and the time drop?'):''}` },
 
 { id:'cost', kick:'5.2 · evaluate the cost', eyebrow:'Indexes are not free', title:'Index for your reads, pay on every write',
   tag:'index', steps:[
@@ -1961,11 +2001,11 @@ INCLUDE (total_amount);`,'good']];
   {note:'Mini-checkpoint. An index on status, with four evenly spread values, still shows a Seq Scan. Bug, or correct?'},
   {note:'Correct. Low selectivity — reading a quarter of the table through an index is slower than just scanning it. If one status is rare, consider a partial index.'}],
   body:(st)=>`<div class="stage-row">${sceneWriteCost(st)}</div>
-    ${st>=1?`<div class="cards pop" style="grid-template-columns:1fr 1fr">
-      ${card('Cost','Slower writes','Every <code>INSERT</code> / <code>UPDATE</code> / <code>DELETE</code> must also update the index.','warn')}
-      ${card('Cost','Disk & RAM','Redundant / unused indexes are pure overhead.','warn')}</div>`:''}
-    ${st>=2?tell('Rule of thumb','index the columns you filter and join on constantly &mdash; not every column just in case.','note'):''}
-    ${st>=3?tell('Mini-check','index on <code>status</code> (4 even values) still shows Seq Scan &mdash; bug or correct?'+(st>=4?' &rarr; <b>correct</b>: low selectivity. Consider a partial index if one status is rare.':''),st>=4?'':'warn'):''}` },
+    ${st>=1?tiles([
+      {t:'Slower writes', ico:'bolt', l:'Every INSERT / UPDATE / DELETE updates <b>every</b> index', at:1},
+      {t:'Disk &amp; RAM', ico:'db', l:'Unused indexes are <b>pure overhead</b>', at:1}], st, 2, 'tight'):''}
+    ${st>=2?oneline('Index what you filter &amp; join on <b>often</b> &mdash; not every column','note'):''}
+    ${st>=3?oneline('Index on <code>status</code> still Seq Scans &mdash; bug?'+(st>=4?' &rarr; <b>no</b>: too few distinct values':''),st>=4?'':'bad'):''}` },
 
 { id:'syntax', kick:'5.3 · how to create', eyebrow:'The syntax menu', title:'Six ways to write CREATE INDEX',
   tag:'index', steps:[
@@ -1975,20 +2015,13 @@ INCLUDE (total_amount);`,'good']];
   {note:'Expression: fixes the LOWER trap.'},
   {note:'Covering: enables the Index Only Scan.'},
   {note:'And in production: build it CONCURRENTLY, so the table is not locked against writes while the index builds.'}],
-  body:(st)=>{
-    const B = [`-- basic single column
-CREATE INDEX idx_orders_customer ON orders (customer_id);`,
-`-- composite: equality col first, range/sort col last
-CREATE INDEX idx_orders_cust_date ON orders (customer_id, order_date);`,
-`-- partial
-CREATE INDEX idx_orders_pending ON orders (order_date) WHERE status = 'pending';`,
-`-- expression (fixes the LOWER() trap)
-CREATE INDEX idx_cust_lower_email ON customers (LOWER(email));`,
-`-- covering → enables Index-Only Scan
-CREATE INDEX idx_orders_cust_incl ON orders (customer_id) INCLUDE (total_amount);`,
-`-- PRODUCTION: build without locking writes
-CREATE INDEX [[CONCURRENTLY]] idx_orders_customer ON orders (customer_id);`];
-    return `<div class="stack">${B.map((b,i)=> st>=i ? `<div class="pop">${sql(b)}</div>`:'').join('')}</div>`; } },
+  body:(st)=>tiles([
+      {n:1, t:'Basic',       code:'<b>CREATE INDEX</b> ON orders (customer_id);', l:'one column', cls:'tl'},
+      {n:2, t:'Composite',   code:'<b>CREATE INDEX</b> ON orders\n  (customer_id, order_date);', l:'equality first, range last', cls:'tl'},
+      {n:3, t:'Partial',     code:"<b>CREATE INDEX</b> ON orders (order_date)\n  <b>WHERE</b> status = 'pending';", l:'only the rows you query', cls:'pp'},
+      {n:4, t:'Expression',  code:'<b>CREATE INDEX</b> ON customers\n  (LOWER(email));', l:'fixes the LOWER() trap', cls:'pp'},
+      {n:5, t:'Covering',    code:'<b>CREATE INDEX</b> ON orders (customer_id)\n  <b>INCLUDE</b> (total_amount);', l:'Index Only Scan', cls:'good'},
+      {n:6, t:'Production',  code:'<b>CREATE INDEX CONCURRENTLY</b>\n  ON orders (customer_id);', l:'no write lock while it builds', cls:'good'}], st, 3, 'tight') },
 
 { id:'which', kick:'5.4 · which index to pick', eyebrow:'The query pattern picks the index', title:'And the trap most people miss',
   tag:'index', steps:[
@@ -2045,27 +2078,24 @@ CREATE INDEX CONCURRENTLY idx_orders_cust_date_amt
   {note:'Restructure — CTEs for clarity, and to compute expensive things once.'},
   {note:'Index — last, and deliberate. Pick the type, order the columns right, verify, and mind the write cost.'},
   {note:'Re-measure — confirm the win. Never trust a fix you did not re-plan. And then, if it is still slow, back to step one.'}],
-  body:(st)=>{
-    const W = [['Measure','<code>EXPLAIN ANALYZE</code>; find the slowest node & the headline time.','gauge'],
-               ['Read','spot the Seq Scan, Rows Removed, the estimate/actual gap, the disk sort.','search'],
-               ['Rewrite','free fixes first — prune columns, keep filters sargable, kill correlated subqueries, refresh stats.','bolt'],
-               ['Restructure','CTEs for clarity and to compute expensive things once.','layers'],
-               ['Index','last, deliberate — pick the type, order columns right, verify, mind the write cost.','build'],
-               ['Re-measure','confirm the win; never trust a fix you didn\'t re-plan.','clock']];
-    return `<div class="cards" style="grid-template-columns:repeat(3,minmax(0,1fr))">
-      ${W.map((w,i)=> st>=i ? `<div class="pop">${card('Step '+(i+1),w[0],w[1],i===4?'pp':i===5?'good':'tl',ico(w[2]))}</div>`:'').join('')}</div>
-      ${st>=5?`<p class="lede pop" style="text-align:center">&#8635; still slow? back to step 1.</p>`:''}`; } },
+  body:(st)=>`${tiles([
+      {n:1, t:'Measure',     ico:'gauge',  l:'<code>EXPLAIN ANALYZE</code>', c:'headline time', cls:'tl', cc:'note'},
+      {n:2, t:'Read',        ico:'search', l:'Find the smell', c:'Seq Scan · Rows Removed', cls:'tl', cc:'note'},
+      {n:3, t:'Rewrite',     ico:'bolt',   l:'Free fixes first', c:'sargable · EXISTS · LIMIT', cls:'pp', cc:'note'},
+      {n:4, t:'Restructure', ico:'layers', l:'Name it once', c:'CTEs', cls:'pp', cc:'note'},
+      {n:5, t:'Index',       ico:'build',  l:'Last &amp; deliberate', c:'type · column order', cls:'good'},
+      {n:6, t:'Re-measure',  ico:'clock',  l:'Confirm the win', c:'before vs after', cls:'good'}], st)}
+    ${st>=5?`<p class="lede pop" style="text-align:center">&#8635; still slow? back to step 1.</p>`:''}` },
 
 { id:'homework', kick:'bridge to next lecture', eyebrow:'Homework & what\'s next', title:'Bring me a plan',
   tag:'close', steps:[
   {note:'The assignment: a slow order_items report query and its schema. Bring the EXPLAIN ANALYZE from before and after, and the index you chose — and justify the column order.'},
   {note:'Next: the layers we deliberately skipped today — partitioning, and configuration tuning like work_mem. The schema and hardware levels.'},
   {note:'And the line to leave them with. You did not make the database faster. You stopped making it do unnecessary work — and then you gave it a shortcut. That is query optimization.'}],
-  body:(st)=>`<div class="cards" style="grid-template-columns:1fr 1fr">
-      <div class="pop">${card('Your assignment','A slow order_items report','Bring its <code>EXPLAIN ANALYZE</code> before/after and the index you chose &mdash; <b>justify the column order</b>.','pp',ico('search'))}</div>
-      ${st>=1?`<div class="pop">${card('Next','The layers we skipped','Partitioning and configuration tuning (<code>work_mem</code>) &mdash; the schema and hardware levels we set aside today.','tl',ico('layers'))}</div>`:''}
-    </div>
-    ${st>=2?`<p class="quote pop">"You didn't make the database faster. You stopped making it do unnecessary work &mdash; and then you gave it a shortcut. That's query optimization."</p>`:''}` },
+  body:(st)=>`${tiles([
+      {t:'Your assignment', ico:'search', l:'A slow <b>order_items</b> report', c:'before / after plan + your index', cls:'pp', cc:'note'},
+      {t:'Next lecture', ico:'layers', l:'The layers we skipped', c:'partitioning · work_mem', cls:'tl', cc:'note'}], st, 2)}
+    ${st>=2?`<p class="quote pop">"You didn't make the database faster. You stopped making it do unnecessary work &mdash; and then you gave it a shortcut."</p>`:''}` },
 
 { id:'thanks', kick:'questions welcome', eyebrow:'Thank you', title:'Thanks — and over to you.',
   tag:'close', steps:[
