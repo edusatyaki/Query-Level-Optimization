@@ -667,6 +667,15 @@ text{font-family:var(--hand)}
 .chapter .ch-detail{font-size:1.15rem}
 .chapter .ch-detail b{color:var(--ink)}
 @media (max-width:900px){.chapter .ch-art{display:none}}
+
+/* "you type" → "it prints back" labels */
+.stepl{display:flex;align-items:center;gap:.4rem;font-family:var(--hand);font-size:.62rem;letter-spacing:1.2px;
+  text-transform:uppercase;color:var(--orange-deep)}
+.stepl b{display:inline-grid;place-items:center;width:1.2rem;height:1.2rem;border-radius:50%;background:var(--amber);
+  border:2px solid var(--ink);font-family:var(--marker);font-size:.8rem;letter-spacing:0;color:var(--ink)}
+.stepl span{text-transform:none;letter-spacing:0;color:var(--muted)}
+.psql{font-family:var(--mono);font-size:.52rem;color:var(--muted);margin-bottom:-.2rem}
+.stack > .plan{margin:0}
 </style>
 </head>
 <body>
@@ -1621,7 +1630,7 @@ WHERE total_amount > 5000;`)}</div>`:'<div></div>'}</div>
 
 { id:'node', kick:'how to read a node', eyebrow:'Define', title:'Anatomy of one plan node',
   tag:'explain', steps:[
-  {note:'This is one node, exactly as EXPLAIN ANALYZE prints it. We will read it token by token.'},
+  {note:'First, where this comes from. You type one line in psql or pgAdmin: EXPLAIN ANALYZE, then the query. PostgreSQL runs it and prints back this block — you never write the plan yourself. Now we read it token by token.'},
   {note:'Seq Scan — read the entire table, row by row. This is the smell.'},
   {note:'cost, zero to 358,458 — startup cost, then total cost. Lower is better.'},
   {note:'rows equals 95,000 — the planner\'s estimate of rows this node will emit.'},
@@ -1639,13 +1648,20 @@ WHERE total_amount > 5000;`)}</div>`:'<div></div>'}</div>
       ['<code>actual time=..2140.870</code> — real ms, first row .. last row.'],
       ['<code>rows=98211 loops=1</code> — actual rows, and how many times it ran.'],
       ['<code>Rows Removed by Filter</code> — read ~20M, threw away <b>19.9M</b>. Often the whole diagnosis.']];
-    return `<div class="two wl">
+    return `<div class="two wl"><div class="stack">
+      <div class="stepl"><b>1</b> You type <span>(psql / pgAdmin)</span></div>
+      <div class="psql">shopeasy=#</div>
+      ${sql(`[[EXPLAIN ANALYZE]] SELECT * FROM orders
+WHERE total_amount > 5000;`)}
+      <div class="stepl"><b>2</b> PostgreSQL prints back <span>&darr;</span></div>
       <pre class="plan"><span class="${on(1)}">Seq Scan</span> on orders
   (<span class="${on(2)}">cost=0.00..358458.00</span> <span class="${on(3)}">rows=95000</span> <span class="${on(4)}">width=24</span>)
   (<span class="${on(5)}">actual time=0.015..2140.870</span>
    <span class="${on(6)}">rows=98211 loops=1</span>)
   Filter: (total_amount &gt; 5000)
-  <span class="bad ${on(7)}">Rows Removed by Filter: 19901789</span></pre>
+  <span class="bad ${on(7)}">Rows Removed by Filter: 19901789</span>
+Planning Time: 0.081 ms
+Execution Time: 2141.304 ms</pre></div>
       <div class="anno">${A.map((a,i)=> st>=i+1 ? `<div class="pop ${st===i+1?'on':''} ${i===6?'warn':''}">${a[0]}</div>`:'').join('')}</div>
     </div>`; } },
 
