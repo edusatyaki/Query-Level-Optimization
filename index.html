@@ -613,6 +613,30 @@ text{font-family:var(--hand)}
   padding:.04rem .4rem;color:var(--ink)}
 .stat .v .live{display:inline-block;width:.32em;height:.32em;border-radius:50%;background:var(--flame);
   vertical-align:middle;margin-left:.2em;animation:blip 1.2s ease-in-out infinite}
+
+/* ================= plan-smell cards: see / means / fix ================= */
+.smells{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.6rem .7rem}
+.smell{position:relative;display:flex;flex-direction:column;gap:.28rem;background:var(--card);border:2.5px solid var(--ink);
+  border-radius:var(--wobble);padding:.5rem .75rem .6rem;box-shadow:var(--shadow-sm);min-width:0}
+.smell:nth-child(even){border-radius:var(--wobble-2)}
+.smell::after{content:'';position:absolute;left:.7rem;right:.7rem;top:-2px;height:7px;background:var(--flame);border-radius:99px;opacity:.85}
+.smell.good::after{background:var(--leaf)}
+.smell .hd{display:flex;align-items:center;gap:.5rem}
+.smell .no{flex:0 0 auto;width:1.5rem;height:1.5rem;border-radius:50%;display:grid;place-items:center;background:var(--flame);
+  color:var(--on-flame);font-family:var(--marker);font-weight:700;font-size:.95rem;border:2px solid var(--ink)}
+.smell.good .no{background:var(--leaf);color:#fff}
+.smell .nm{font-family:var(--marker);font-weight:700;font-size:1.15rem;line-height:1;color:var(--ink)}
+.smell .pic{height:2.6rem;display:flex;justify-content:center}
+.smell .pic svg{height:100%;width:auto;overflow:visible}
+.smell .ln{display:grid;grid-template-columns:3rem minmax(0,1fr);gap:.4rem;align-items:baseline}
+.smell .k{font-family:var(--hand);font-size:.46rem;letter-spacing:.8px;text-transform:uppercase;color:var(--muted)}
+.smell .see{font-family:var(--mono);font-size:.5rem;color:var(--flame-ink);background:var(--flame-soft);border:1.5px solid var(--flame);
+  border-radius:5px;padding:1px 5px;justify-self:start;overflow-wrap:anywhere}
+.smell.good .see{color:var(--ink);background:var(--leaf-soft);border-color:var(--leaf)}
+.smell .means{font-family:var(--hand);font-size:.74rem;line-height:1.15;color:var(--ink)}
+.smell .fix{font-family:var(--hand);font-size:.72rem;line-height:1.2;color:var(--leaf);font-weight:600}
+.smell .fix code{font-size:.85em}
+@media (max-width:980px){.smells{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -1538,22 +1562,56 @@ WHERE total_amount > 5000;`)}</div>`:'<div></div>'}</div>
 
 { id:'smells', kick:'what to look for', eyebrow:'Define', title:'The plan-smell checklist',
   tag:'explain', steps:[
-  {note:'Seq Scan on a big table when you wanted a few rows — that is an index candidate.'},
-  {note:'Estimated versus actual rows badly mismatched — estimate 100, actual two million. Stale statistics; fix with ANALYZE on the table.'},
-  {note:'Rows Removed by Filter is large — you are filtering too late, or too broadly.'},
-  {note:'Sort Method: external merge, Disk — the sort spilled to disk, which is slow. You want quicksort, Memory.'},
-  {note:'Nested Loop with a high loops count on a large inner table — possibly a bad join choice.'},
-  {note:'And the Execution Time at the bottom is your headline number. That is what you report.'}],
+  {note:'Six things to look for in a plan. Each card has the same three lines: what you see in the plan, what it means in plain words, and the fix. First: a Seq Scan on a big table when you only wanted a few rows. It read the whole table. Fix: give it an index.'},
+  {note:'Two: the planner\'s guess and reality disagree — it guessed a hundred rows, two million came back. Its statistics are out of date. Fix: run ANALYZE on the table.'},
+  {note:'Three: Rows Removed by Filter is huge. It read millions of rows and threw almost all of them away. Fix: an index, so it only reads the rows you want.'},
+  {note:'Four: Sort Method external merge, Disk. The sort did not fit in memory and spilled to disk, which is slow. Fix: sort fewer rows — a LIMIT, or an index that is already sorted. You want quicksort, Memory.'},
+  {note:'Five: a Nested Loop with a huge loops count. The same lookup was repeated millions of times — usually a correlated subquery. Fix: rewrite with EXISTS or a JOIN, or index the inner side.'},
+  {note:'And six, the good one: Execution Time at the bottom. That is your headline number — measure it before, and again after every fix.'}],
   body:(st)=>{
+    /* tiny drawings, one per smell (viewBox 120×60) */
+    const box = (x,y,w,h,f) => `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="2" fill="${f}" stroke="var(--ink)" stroke-width="1.6"/>`;
+    const PIC = [
+      /* every row read, one kept */
+      [...Array(8)].map((_,i)=>box(4+i*14,18,11,24, i===5?'var(--amber)':'var(--flame-soft)')).join('') +
+        `<path d="M2,50 H116" stroke="var(--flame)" stroke-width="3" stroke-linecap="round" marker-end="url(#smA)"/>`,
+      /* the guess vs the real number */
+      `<text x="2" y="16" style="font-family:var(--hand);font-size:11px;fill:var(--muted)">guess</text>${box(36,7,4,12,'var(--pencil)')}
+       <text x="2" y="44" style="font-family:var(--hand);font-size:11px;fill:var(--muted)">real</text>${box(36,34,80,14,'var(--flame)')}`,
+      /* many in, almost all thrown away */
+      [...Array(7)].map((_,i)=>box(4,4+i*8,22,5,'var(--pencil-soft)')).join('') +
+        `<path d="M30,30 H52" stroke="var(--ink)" stroke-width="2" marker-end="url(#smA)"/>
+         <path d="M56,8 L96,8 L82,30 L82,46 L70,52 L70,30 Z" fill="var(--card)" stroke="var(--ink)" stroke-width="1.8"/>${box(100,40,16,8,'var(--amber)')}
+         <text x="108" y="34" text-anchor="middle" style="font-family:var(--hand);font-size:10px;fill:var(--muted)">kept</text>`,
+      /* memory box overflowing to disk */
+      `${box(4,10,46,40,'var(--pencil-soft)')}${[...Array(4)].map((_,i)=>box(8,14+i*9,38,6,'var(--flame)')).join('')}
+       <path d="M52,30 H70" stroke="var(--flame)" stroke-width="2.4" marker-end="url(#smA)"/>
+       <ellipse cx="96" cy="16" rx="20" ry="6" fill="var(--flame-soft)" stroke="var(--ink)" stroke-width="1.6"/>
+       <path d="M76,16 V44 C76,48 85,52 96,52 C107,52 116,48 116,44 V16" fill="var(--flame-soft)" stroke="var(--ink)" stroke-width="1.6"/>
+       <text x="96" y="38" text-anchor="middle" style="font-family:var(--hand);font-size:11px">disk</text>`,
+      /* the same trip, again and again */
+      `${box(4,20,30,22,'var(--card)')}${box(86,20,30,22,'var(--pencil-soft)')}
+       ${[0,1,2].map(i=>`<path d="M34,${26+i*5} C55,${8+i*6} 66,${8+i*6} 86,${26+i*5}" fill="none" stroke="var(--flame)" stroke-width="1.8" stroke-dasharray="4 3"/>`).join('')}
+       <text x="60" y="56" text-anchor="middle" style="font-family:var(--hand);font-size:11px;fill:var(--flame-ink)">&times; 2,000,000</text>`,
+      /* the stopwatch */
+      `<circle cx="60" cy="32" r="22" fill="var(--leaf-soft)" stroke="var(--ink)" stroke-width="2"/>
+       <rect x="55" y="4" width="10" height="6" rx="1" fill="var(--ink)"/>
+       <path d="M60,32 L60,18 M60,32 L70,38" stroke="var(--ink)" stroke-width="2.4" stroke-linecap="round"/>`];
     const S = [
-      ['Smell','Seq Scan on a big table','…where you wanted a few rows &rarr; <b>index candidate</b>.','warn','search'],
-      ['Smell','Estimate ≠ actual','est 100 vs actual 2M &rarr; stale stats, fix with <code>ANALYZE tablename;</code>','warn','gauge'],
-      ['Smell','Rows Removed by Filter','large &rarr; filtering too late or too broadly.','warn','trash'],
-      ['Smell','external merge Disk','the sort spilled to disk (slow). Want <code>quicksort Memory</code>.','warn','db'],
-      ['Smell','Nested Loop, high loops=','…on a large inner table &rarr; possible bad join choice.','warn','route'],
-      ['Headline','Execution Time','at the bottom &mdash; your headline number.','good','clock']];
-    return `<div class="cards" style="grid-template-columns:repeat(3,minmax(0,1fr))">
-      ${S.map((s,i)=> st>=i ? `<div class="pop">${card(s[0],s[1],s[2],s[3],ico(s[4]))}</div>`:'').join('')}</div>`; } },
+      ['Seq Scan on a big table',      'Seq Scan on orders',                      'Read the <b>whole table</b> for a few rows.',            'an <b>index</b> on the filter column.'],
+      ['Guess ≠ reality',              'rows=100 … actual rows=2000000',          'The planner <b>guessed wrong</b> &mdash; old stats.',   '<code>ANALYZE orders;</code>'],
+      ['Rows Removed by Filter: huge', 'Rows Removed by Filter: 19901789',        'Read millions, <b>threw almost all away</b>.',            'an <b>index</b> &mdash; read only what you need.'],
+      ['Sort spilled to disk',         'Sort Method: external merge  Disk',       'The sort <b>didn\'t fit in memory</b>.',           'sort fewer rows: <code>LIMIT</code> or a sorted index.'],
+      ['Nested Loop, huge loops=',     'Nested Loop … loops=2000000',             'The <b>same lookup</b>, millions of times.',           'use <code>EXISTS</code> / <code>JOIN</code>, or index the inner side.'],
+      ['Execution Time',               'Execution Time: 2140.870 ms',             'The <b>one number</b> to report.',                              'measure it <b>before and after</b> every fix.']];
+    return `<svg width="0" height="0" style="position:absolute"><defs><marker id="smA" viewBox="0 0 10 10" refX="8" refY="5"
+        markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--ink)"/></marker></defs></svg>
+      <div class="smells">${S.map((x,i)=> st>=i ? `<div class="smell pop ${i===5?'good':''}">
+        <div class="hd"><span class="no">${i+1}</span><span class="nm">${x[0]}</span></div>
+        <div class="pic"><svg viewBox="0 0 120 60" aria-hidden="true">${PIC[i]}</svg></div>
+        <div class="ln"><span class="k">You see</span><span class="see">${x[1]}</span></div>
+        <div class="ln"><span class="k">It means</span><span class="means">${x[2]}</span></div>
+        <div class="ln"><span class="k">${i===5?'Use it':'Fix'}</span><span class="fix">${x[3]}</span></div></div>`:'').join('')}</div>`; } },
 
 { id:'vocab', kick:'the words plans speak', eyebrow:'Define · vocabulary', title:'Scans and joins',
   tag:'explain', steps:[
