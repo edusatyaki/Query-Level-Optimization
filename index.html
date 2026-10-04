@@ -676,6 +676,18 @@ text{font-family:var(--hand)}
 .stepl span{text-transform:none;letter-spacing:0;color:var(--muted)}
 .psql{font-family:var(--mono);font-size:.52rem;color:var(--muted);margin-bottom:-.2rem}
 .stack > .plan{margin:0}
+
+/* free-wins cheat sheet */
+.cheat{display:grid;gap:.5rem}
+.cheat .ch-h,.cheat .ch-r{display:grid;grid-template-columns:1.6rem minmax(0,1fr) minmax(0,1fr) 6.2rem;gap:.55rem;align-items:center}
+.cheat .ch-h span{font-family:var(--hand);font-size:.72rem;letter-spacing:1.3px;text-transform:uppercase;color:var(--muted)}
+.cheat .ch-h .bad{color:var(--flame-ink)} .cheat .ch-h .good{color:var(--leaf)}
+.cheat .ch-r .no{width:1.5rem;height:1.5rem;border-radius:50%;display:grid;place-items:center;background:var(--amber);
+  border:2px solid var(--ink);font-family:var(--marker);font-weight:700;font-size:.9rem}
+.cheat .ch-r code{display:block;font-size:.62rem;line-height:1.4;padding:.4rem .6rem;border-radius:6px;white-space:normal}
+.cheat .ch-r code.bad{background:var(--flame-soft);border:2px solid var(--flame);color:var(--flame-ink)}
+.cheat .ch-r code.good{background:var(--leaf-soft);border:2px solid var(--leaf);color:var(--ink)}
+.cheat .ch-r .why{font-family:var(--hand);font-size:.78rem;font-weight:600;color:var(--leaf)}
 </style>
 </head>
 <body>
@@ -1389,7 +1401,7 @@ const CHAPTERS = [
  {n:1, t:'The dashboard that died',        of:['title','problem','scenario','sale','model','rows','path']},
  {n:2, t:'Meet the planner',               of:['levels','planner','samerows']},
  {n:3, t:'Reading the execution plan',     of:['explain','node','smells','vocab','before','quiz2']},
- {n:4, t:'The free wins',                  of:['t1','t2','t3','t4','t5','t6','quiz3']},
+ {n:4, t:'The free wins',                  of:['t1','t2','t3','t4','t5','t6','tcheat','quiz3']},
  {n:5, t:'Common Table Expressions',       of:['cteneed','ctedef','inline','trap','quiz4']},
  {n:6, t:'Indexing: give it a shortcut',   of:['book','types','btree','hash','gin','gist','brin','composite','shapes',
                                                'whenidx','cost','syntax','which','victory','quiz5']},
@@ -1764,9 +1776,9 @@ Execution Time: 2141.304 ms</pre></div>
   {note:'The plan tell: the width value drops — here from 210 bytes a row to 32.'}],
   body:(st)=>`<p class="lede"><b>Why:</b> fewer, narrower columns = smaller <code>width</code> = less I/O &mdash; and it's a precondition for the fast <b>Index-Only Scan</b> later.</p>
     <div class="pair">
-      <div><span class="verdict bad">&#10005; Wider than needed</span>${sql(`SELECT [[!*]] FROM customers
+      <div><span class="verdict bad">&#10005; Don't write &mdash; wider than needed</span>${sql(`SELECT [[!*]] FROM customers
 WHERE city = 'Pune';   -- width=210`)}</div>
-      ${st>=1?`<div class="pop"><span class="verdict good">&check; Only what you show</span>${sql(`SELECT [[customer_id, name]] FROM customers
+      ${st>=1?`<div class="pop"><span class="verdict good">&check; Write this &mdash; only what you show</span>${sql(`SELECT [[customer_id, name]] FROM customers
 WHERE city = 'Pune';   -- width=32`)}</div>`:'<div></div>'}</div>
     <div class="stage-row">${sceneWidth(st>=1?1:0,'width = 210','width = 32')}</div>
     ${st>=2?tell('Plan tell','the <code>width=</code> value drops.'):''}` },
@@ -1780,13 +1792,13 @@ WHERE city = 'Pune';   -- width=32`)}</div>`:'<div></div>'}</div>
   {note:'Bare column → Index Scan. The other fix, an expression index, comes in chapter 6.'}],
   body:(st)=>`<p class="lede"><b>Why:</b> the index is built on the <b>raw column</b>, not the function's output &mdash; so a function on the column forces a Seq Scan.</p>
     <div class="pair">
-      <div><span class="verdict bad">&#10005; Function kills the index</span>${sql(`SELECT * FROM customers
+      <div><span class="verdict bad">&#10005; Don't write &mdash; function hides the column</span>${sql(`SELECT * FROM customers
 WHERE [[!LOWER(email)]] = 'amit@shop.com';`)}</div>
-      ${st>=1?`<div class="pop"><span class="verdict good">&check; Keep the column bare</span>${sql(`SELECT * FROM customers
+      ${st>=1?`<div class="pop"><span class="verdict good">&check; Write this &mdash; column left bare</span>${sql(`SELECT * FROM customers
 WHERE [[email]] = 'amit@shop.com';`)}</div>`:'<div></div>'}</div>
     ${st>=2?`<div class="pair pop">
-      <div><span class="verdict bad">&#10005; Cast defeats the range</span>${sql(`WHERE [[!order_date::text]] LIKE '2025%';`)}</div>
-      ${st>=3?`<div class="pop"><span class="verdict good">&check; Range-friendly dates</span>${sql(`WHERE order_date >= '2025-01-01'
+      <div><span class="verdict bad">&#10005; Don't write &mdash; cast to text</span>${sql(`WHERE [[!order_date::text]] LIKE '2025%';`)}</div>
+      ${st>=3?`<div class="pop"><span class="verdict good">&check; Write this &mdash; a date range</span>${sql(`WHERE order_date >= '2025-01-01'
   AND order_date <  '2026-01-01';`)}</div>`:'<div></div>'}</div>`:''}
     ${st>=4?tell('Plan tell','a <b>Seq Scan</b> flips to an <b>Index Scan</b> once the column is left bare. (Or later: an expression index on <code>LOWER(email)</code>.)'):''}` },
 
@@ -1797,17 +1809,17 @@ WHERE [[email]] = 'amit@shop.com';`)}</div>`:'<div></div>'}</div>
   {note:'Or, best when you only care whether something exists: EXISTS. It can stop at the first matching order.'},
   {note:'Per-row SubPlan → one Hash Semi Join. Live: about 3 hours down to a quarter second.'}],
   body:(st)=>`<div class="pair" style="--n:3">
-      <div><span class="verdict bad">&#10005; Correlated subquery</span>${sql(`SELECT name FROM customers c
+      <div><span class="verdict bad">&#10005; Don't write &mdash; runs once per row</span>${sql(`SELECT name FROM customers c
 WHERE ([[!SELECT COUNT(*)]]
        [[!FROM orders o]]
        [[!WHERE o.customer_id]]
        [[!  = c.customer_id]]) > 0;`,'sm')}</div>
-      ${st>=1?`<div class="pop"><span class="verdict good">&check; JOIN</span>${sql(`SELECT DISTINCT [[c.customer_id]], c.name
+      ${st>=1?`<div class="pop"><span class="verdict good">&check; Write this &mdash; JOIN</span>${sql(`SELECT DISTINCT [[c.customer_id]], c.name
 FROM customers c
 JOIN orders o
   ON o.customer_id
    = c.customer_id;`,'sm')}</div>`:'<div></div>'}
-      ${st>=2?`<div class="pop"><span class="verdict good">&check; EXISTS (best for existence)</span>${sql(`SELECT c.name FROM customers c
+      ${st>=2?`<div class="pop"><span class="verdict good">&check; Or this &mdash; EXISTS (best)</span>${sql(`SELECT c.name FROM customers c
 WHERE [[EXISTS]] (
   SELECT 1 FROM orders o
   WHERE o.customer_id
@@ -1821,16 +1833,16 @@ WHERE [[EXISTS]] (
   {note:'Split it with UNION: each branch uses its own index. Live: 365 ms down to under 1 ms.'},
   {note:'Plan tell: a hash join with a giant Join Filter becomes two index lookups glued by UNION.'}],
   body:(st)=>`<div class="pair">
-      <div><span class="verdict good">&check; One column &mdash; IN (OR works too)</span>${sql(`SELECT * FROM orders
+      <div><span class="verdict good">&check; Write this &mdash; IN for one column</span>${sql(`SELECT * FROM orders
 WHERE status [[IN]] ('pending', 'cancelled');
 -- OR on the same column also uses the
 -- index (BitmapOr); IN is just cleaner`,'sm')}</div>
-      ${st>=1?`<div class="pop"><span class="verdict bad">&#10005; OR across two tables</span>${sql(`SELECT o.order_id, o.total_amount
+      ${st>=1?`<div class="pop"><span class="verdict bad">&#10005; Don't write &mdash; OR across two tables</span>${sql(`SELECT o.order_id, o.total_amount
 FROM orders o JOIN customers c
   ON c.customer_id = o.customer_id
 WHERE c.email = 'amit@shop.com'
    [[!OR]] o.order_id = 880231;`,'sm')}</div>`:'<div></div>'}</div>
-    ${st>=2?`<div class="pop"><span class="verdict good">&check; UNION &mdash; each branch seeks its own index</span>${sql(`SELECT o.order_id, o.total_amount FROM orders o JOIN customers c ON c.customer_id = o.customer_id
+    ${st>=2?`<div class="pop"><span class="verdict good">&check; Write this &mdash; UNION, one index per branch</span>${sql(`SELECT o.order_id, o.total_amount FROM orders o JOIN customers c ON c.customer_id = o.customer_id
 WHERE c.email = 'amit@shop.com'
 [[UNION]]
 SELECT order_id, total_amount FROM orders WHERE order_id = 880231;`,'sm')}</div>`:''}
@@ -1841,16 +1853,24 @@ SELECT order_id, total_amount FROM orders WHERE order_id = 880231;`,'sm')}</div>
   {note:'Showing 20 rows? Don\'t sort millions. With the right index it reads 20 and stops.'},
   {note:'A needless DISTINCT can add a whole sort or hash-aggregate node. If the rows are already unique, remove it and the node disappears.'},
   {note:'Plan tell: a Sort over millions shrinks or vanishes, and the top node\'s actual rows drops to twenty.'}],
-  body:(st)=>`<div class="two wl">
-      <div class="stack"><span class="verdict good">&check; Let the planner stop early</span>${sql(`SELECT order_id, total_amount
+  body:(st)=>`<div class="pair">
+      <div><span class="verdict bad">&#10005; Don't write &mdash; sorts every row, app keeps 20</span>${sql(`SELECT order_id, total_amount
+FROM orders
+WHERE customer_id = 1024
+ORDER BY order_date DESC;   -- no LIMIT`,'lg')}</div>
+      <div><span class="verdict good">&check; Write this &mdash; stop after 20</span>${sql(`SELECT order_id, total_amount
 FROM orders
 WHERE customer_id = 1024
 ORDER BY order_date DESC
-[[LIMIT 20]];`,'lg')}</div>
-      ${tiles([
-        {t:'Show 20, read 20', pic:'funnel', l:'Don\'t sort <b>millions</b> to show twenty', c:'&rarr; add <code>LIMIT</code>', cls:'good'},
-        {t:'Needless DISTINCT', pic:'nodex', l:'Rows already unique? A wasted node', c:'&rarr; drop it', cls:'pp'}], st, 1, 'tight')}</div>
-    ${st>=2?oneline('Plan tell: the <b>Sort</b> shrinks or vanishes &mdash; top node returns <b>20</b> rows'):''}` },
+[[LIMIT 20]];`,'lg')}</div></div>
+    ${st>=1?`<div class="pair pop">
+      <div><span class="verdict bad">&#10005; Don't write &mdash; DISTINCT on unique rows</span>${sql(`SELECT [[!DISTINCT]] order_id, total_amount
+FROM orders
+WHERE total_amount > 5000;`,'lg')}</div>
+      <div><span class="verdict good">&check; Write this &mdash; order_id is already unique</span>${sql(`SELECT order_id, total_amount
+FROM orders
+WHERE total_amount > 5000;`,'lg')}</div></div>`:''}
+    ${st>=2?tell('Plan tell','the <b>Sort</b> over millions shrinks or vanishes, the extra <b>HashAggregate</b> node disappears.'):''}` },
 
 { id:'t6', kick:'trick 6 · keep statistics fresh', eyebrow:'Trick 6 of 6', title:'A good plan needs good estimates',
   tag:'trick', steps:[
@@ -1860,12 +1880,34 @@ ORDER BY order_date DESC
   body:(st)=>`<div class="two wl">
       <div class="stage-row">${sceneStats(st)}</div>
       <div class="stack">
-        ${sql(`ANALYZE orders;
--- then re-run:
-EXPLAIN SELECT ...;`,'lg')}
-        ${st>=1?`<p class="lede pop" style="font-size:.78rem">Often the plan changes on its own &mdash; no rewrite needed. <b>autovacuum</b> usually does this, but do it by hand after a bulk load.</p>`:''}
+        <span class="verdict bad">&#10005; Don't write &mdash; query right after a bulk load</span>${sql(`COPY orders FROM 'black_friday.csv';  -- +2M rows
+SELECT ... FROM orders ...;   -- planner still thinks 100 rows`)}
+        ${st>=1?`<div class="pop"><span class="verdict good">&check; Write this &mdash; refresh stats first</span>${sql(`COPY orders FROM 'black_friday.csv';
+[[ANALYZE orders;]]
+SELECT ... FROM orders ...;`)}</div>`:''}
       </div></div>
     ${st>=2?tell('Plan tell','the estimated-vs-actual rows gap closes.'):''}` },
+
+{ id:'tcheat', kick:'the six free wins on one page', eyebrow:'Cheat sheet', title:'Don\'t write this → write this',
+  tag:'trick', steps:[
+  {note:'One: don\'t SELECT star — name the columns you show.'},
+  {note:'Two: don\'t wrap the filtered column in a function or cast — leave it bare, or use a range.'},
+  {note:'Three: don\'t count per row in a subquery — use EXISTS or a JOIN.'},
+  {note:'Four: don\'t OR across two tables — split it with UNION. On one column, IN is fine.'},
+  {note:'Five: don\'t sort everything to show twenty — add LIMIT; drop DISTINCT on unique rows.'},
+  {note:'Six: don\'t query straight after a bulk load — run ANALYZE first.'}],
+  body:(st)=>{
+    const R = [
+      ['SELECT * FROM customers WHERE city = \'Pune\';', 'SELECT customer_id, name FROM customers WHERE city = \'Pune\';', 'fewer bytes'],
+      ['WHERE LOWER(email) = \'amit@shop.com\'', 'WHERE email = \'amit@shop.com\'', 'index usable'],
+      ['WHERE (SELECT COUNT(*) FROM orders o WHERE o.customer_id = c.customer_id) > 0', 'WHERE EXISTS (SELECT 1 FROM orders o WHERE o.customer_id = c.customer_id)', 'one pass'],
+      ['WHERE c.email = \'amit@shop.com\' OR o.order_id = 880231', '… WHERE c.email = … UNION … WHERE o.order_id = 880231', 'two index seeks'],
+      ['ORDER BY order_date DESC;   -- app keeps 20', 'ORDER BY order_date DESC LIMIT 20;', 'stops early'],
+      ['COPY …; SELECT …;   -- stale stats', 'COPY …; ANALYZE orders; SELECT …;', 'right estimates']];
+    return `<div class="cheat">
+      <div class="ch-h"><span></span><span class="bad">&#10005; Don't write</span><span class="good">&check; Write this</span><span>why</span></div>
+      ${R.map((x,i)=> st>=i ? `<div class="ch-r pop"><span class="no">${i+1}</span>
+        <code class="bad">${esc(x[0])}</code><code class="good">${esc(x[1])}</code><span class="why">${x[2]}</span></div>`:'').join('')}</div>`; } },
 
 { id:'quiz3', kick:'checkpoint · segment 3', eyebrow:'Check yourself', title:'Three sins in one query',
   tag:'checkpoint', steps:quizSteps(Q3, 'Our dashboard query used SELECT star, a LOWER on email, and a correlated subquery — three of six sins at once.'),

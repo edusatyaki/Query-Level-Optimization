@@ -30,8 +30,8 @@ shows the file on disk.
 | `+` / `−` / `0` | type size, for the room you are in |
 | `Home` / `End` | first / last slide |
 
-219 pages — every step counts as its own page, and the counter in the rail
-runs `page 1 / 219` to `page 219 / 219`. Notes are written for speaking aloud,
+225 pages — every step counts as its own page, and the counter in the rail
+runs `page 1 / 225` to `page 225 / 225`. Notes are written for speaking aloud,
 one per page.
 
 ## Structure: it is a story
@@ -95,7 +95,7 @@ paper with keywords weighted; the wrong part of a bad query is outlined in
 flame, the fix highlighted in amber. Warm dark mode on `T`.
 
 A slide never scrolls: an inner wrapper scales the step down if it would not
-fit. Checked by walking all 219 steps with no errors.
+fit. Checked by walking all 225 steps with no errors.
 
 ## Source
 
