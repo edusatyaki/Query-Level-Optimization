@@ -1403,39 +1403,39 @@ const OPENERS = {
     next:'So let\'s meet the planner.',
     art:()=>scenePlanner(3),
     say:['We never told the database to scan the whole table.',
-         'The query planner chose that. Query optimization is the same destination by a faster road — and the planner is the one picking the road.',
-         'So before we change anything, let us meet the planner and the number it minimizes.']},
+         'The planner chose that — same destination, it picks the road.',
+         'So first, meet the planner.']},
  3:{when:'Segment 2 · 15 minutes',
     problem:'You can\'t fix what you can\'t see.',
     detail:'<b>EXPLAIN</b> shows the plan.',
     next:'Every change: check the plan.',
     art:()=>sceneSeqScan(1),
     say:['You cannot optimize what you cannot see.',
-         'EXPLAIN is the X-ray. It prints the plan the planner chose, node by node, with its estimates — and with ANALYZE, with what actually happened.',
-         'From here on, every change is a hypothesis you can verify.']},
+         'EXPLAIN is the X-ray: the plan it chose, step by step.',
+         'From now on, check every change in the plan.']},
  4:{when:'Segment 3 · 15 minutes',
     problem:'Some slowness is in how we write SQL.',
     detail:'Six <b>free</b> rewrites. No new index.',
     next:'One trick at a time.',
     art:()=>sceneRoad(1),
-    say:['Some of the slowness is self-inflicted — in how the SQL is written.',
-         'Six rewrites that cost nothing: no schema change, no index. Each one leaves a fingerprint in the plan.',
+    say:['Some slowness comes from how the SQL is written.',
+         'Six free rewrites — no schema change, no index.',
          'Six tricks, roughly two minutes each.']},
  5:{when:'Segment 4 · 10 minutes',
     problem:'The real query is a mess.',
     detail:'A <b>CTE</b> names a piece once.',
     next:'Plus one trap to avoid.',
     art:()=>sceneCTEFlow(3),
-    say:['The real dashboard query is a nest of subqueries nobody wants to touch.',
-         'A Common Table Expression gives a sub-result a name, so you can reference it like a temporary table — for readability, and to compute an expensive block once.',
-         'And one trap, where naming it makes things far worse.']},
+    say:['The real dashboard query is a tangle of subqueries.',
+         'A CTE names a piece once — readable, and computed once.',
+         'Plus one trap that makes it worse.']},
  6:{when:'Segment 5 · 17 minutes',
     problem:'Rewrites can\'t remove the last Seq Scan.',
     detail:'The database needs a <b>shortcut</b>.',
     next:'That shortcut is an index.',
     art:()=>sceneBook(1),
     say:['No rewrite removes that last Seq Scan.',
-         'The database simply has no shortcut to "this month\'s orders for this customer." It has to read everything to find them.',
+         'The database has no shortcut, so it reads everything.',
          'Time to give it one.']},
  7:{when:'Wrap-up',
     problem:'We didn\'t make it faster.',
@@ -1443,8 +1443,8 @@ const OPENERS = {
     next:'Here\'s the workflow to reuse.',
     art:()=>sceneVictory(2),
     say:['You did not make the database faster.',
-         'You stopped making it do unnecessary work — and then you gave it a shortcut.',
-         'Here is that, as a workflow you can reuse on any slow query.']}
+         'We removed waste, then gave it a shortcut.',
+         'Here\'s the workflow to reuse.']}
 };
 
 function chapterBody(ch, st){
@@ -1488,7 +1488,7 @@ const DECK = [
 /* ================= 1 · the dashboard that died ================= */
 { id:'title', kick:'make the slow query fast — without changing the data', eyebrow:'PostgreSQL · Query level', title:'Query-Level Optimization',
   tag:'intro', steps:[
-  {note:'Open on the promise, not the technique. Everyone here has written SQL that was fine on a laptop. Today we take one query that died in production and make it fast — and we are not allowed to change a single row of data.'},
+  {note:'One query died in production. We make it fast — without changing a single row.'},
   {note:'This is the whole lecture in one line. Thirty seconds to milliseconds, and the result set never changes. Hold them to that rule all session.'}],
   body:(st)=>`<div class="hero">
     <div class="brand-row"><span class="by">in PostgreSQL &middot; case study</span>${brand()}<span class="sticker">Black Friday</span></div>
@@ -1502,14 +1502,14 @@ const DECK = [
   {note:'The report the marketing team lives on. Watch the spinner — that is what they see every morning.'},
   {note:'Thirty seconds and more, and sometimes it never returns at all. The dashboard gives up at 30,000 milliseconds.'},
   {note:'And the classic line: it worked on my laptop with 500 test rows. In production there are twenty million orders.'},
-  {note:'The important sentence: the SQL never changed. The data got big — and the database is now doing expensive work we cannot see. Today is about seeing it.'}],
+  {note:'The SQL never changed. The data grew, and the database now does work we can\'t see.'}],
   body:(st)=>`<div class="stage-row">${sceneTimeout(st)}</div>
     ${st>=2?`<p class="quote pop">"It worked on my laptop with 500 test rows. In production it dies."</p>`:''}
     ${st>=3?`<p class="lede pop">The SQL never changed. <b>The data got big</b> &mdash; and the database is now doing expensive work we can't see.</p>`:''}` },
 
 { id:'scenario', kick:'the running scenario', eyebrow:'ShopEasy & the Black Friday slowdown', title:'Make it fast. Don\'t change the data.',
   tag:'story', steps:[
-  {note:'Set the scene. You just joined ShopEasy, a fast-growing online store, as its database engineer. It is Black Friday, and the "Top Customers This Month" dashboard is timing out.'},
+  {note:'You\'re ShopEasy\'s new database engineer. Black Friday. The Top Customers dashboard is timing out.'},
   {note:'Your manager drops exactly one line in the chat and walks away. Read it out.'},
   {note:'That line is the rule for the whole session. Same rows out, same result. We only change how we ask — the SQL text, and the indexes.'},
   {note:'And the goal, stated as a number: from 30,000 milliseconds to milliseconds.'}],
@@ -1528,10 +1528,10 @@ const DECK = [
 
 { id:'sale', kick:'the practical part — what the database is living through', eyebrow:'ShopEasy · Black Friday, live', title:'The sale that broke the dashboard',
   tag:'story', steps:[
-  {note:'Make it real. This is ShopEasy\'s storefront this morning: Black Friday, up to seventy percent off, the countdown running. Earbuds at fourteen ninety-nine, bedsheets, bottles — the same products we will meet in the data.'},
-  {note:'And the numbers behind the banner. About one lakh eighty-four thousand orders today — ten times a normal day. A peak of thirty-two hundred orders a minute, fifty-eight thousand people online, and forty-two crore rupees of sales.'},
+  {note:'ShopEasy\'s store this morning: Black Friday, up to 70% off — the same products as in our data.'},
+  {note:'1.84 lakh orders today — 10× normal. Peak 3,200 a minute, 58k people online, ₹42.6 crore in sales.'},
   {note:'Every one of those orders is a new row in the orders table. Twenty million rows and climbing, three thousand more every minute.'},
-  {note:'And the report marketing is staring at to decide which offers to push — Top Customers This Month — has to read those rows. That is the query that is timing out. Same SQL as last month; ten times the traffic.'}],
+  {note:'Marketing\'s Top Customers report reads all those rows. Same SQL as last month — 10× the traffic.'}],
   body:(st)=>`<div class="stage-row">${sceneSale(st)}</div>
     ${st>=1?`<div class="stats pop" style="--n:4">
       <div class="stat warn"><div class="k">Orders today<span class="live"></span></div><div class="v">1,84,320</div><div class="s">10&times; a normal day</div></div>
@@ -1553,8 +1553,8 @@ const DECK = [
 
 { id:'rows', kick:'the rows we follow all lecture', eyebrow:'The data model', title:'Meet Aarav, Diya and Rohan',
   tag:'data', steps:[
-  {note:'Meet three ShopEasy customers. Aarav from Pune, Diya from Kochi, Rohan from Delhi. Customer 1024, Aarav, is the one we will keep querying all lecture.'},
-  {note:'Their orders. Aarav placed two in Black Friday week, Diya one big one — she is this month\'s top spender so far. These are exactly the rows the dashboard is trying to rank.'},
+  {note:'Three customers: Aarav (Pune), Diya (Kochi), Rohan (Delhi). We keep querying Aarav, customer 1024.'},
+  {note:'Their orders: Aarav two, Diya one big one — she\'s top spender. The rows the dashboard ranks.'},
   {note:'Order items and products close the loop: what was in each order, and what each product is.'}],
   body:(st)=>{
     const t = (name, head, rows, hl=[]) => `<div class="dt pop"><h5>${name}</h5><table><tr>${head.map(h=>`<th>${h}</th>`).join('')}</tr>
@@ -1595,8 +1595,8 @@ const DECK = [
   tag:'concept', steps:[
   {note:'You hand over SQL — a description of what you want, not how to get it.'},
   {note:'The planner rewrites it into an execution plan: a tree of physical operations — scans, joins, sorts.'},
-  {note:'It considers the candidate routes and estimates the cost of each. Cost is an internal unit — roughly estimated disk page fetches plus CPU work. The units are arbitrary but comparable.'},
-  {note:'It picks the one it estimates cheapest. Say this out loud: you do not optimize by trying harder to write clever SQL blindly. You look at the plan it chose, find the expensive step, and remove the reason it is expensive.'}],
+  {note:'It estimates a cost for each route — roughly page reads plus CPU. Units are arbitrary but comparable.'},
+  {note:'It picks the cheapest. So: read the plan, find the expensive step, remove the reason.'}],
   body:(st)=>`<div class="stage-row">${scenePlanner(st)}</div>
     ${st>=2&&st<3?tell('Cost','Roughly estimated disk page fetches + CPU work. Lower is better; the units are arbitrary but comparable.','note'):''}
     ${st>=3?tell('Say it','Don\'t optimize by writing clever SQL blindly. Look at the plan, find the expensive step, remove the reason it\'s expensive.'):''}` },
@@ -1605,7 +1605,7 @@ const DECK = [
   tag:'example', steps:[
   {note:'Query A: SELECT star from orders where total is over five thousand.'},
   {note:'Query B: the same filter, but only the two columns we actually show.'},
-  {note:'Same rows returned, minus a few columns. Same speed? No. Every row A reads is wider — more bytes, more I/O. We are about to see why, under the hood.'},
+  {note:'Same rows, but A\'s rows are wider — more bytes, more I/O. Let\'s look under the hood.'},
   {note:'Checkpoint before we move on: what does the planner produce, and what does it minimize? An execution plan; estimated cost.'}],
   body:(st)=>`<div class="pair">
       <div><span class="verdict">Query A</span>${sql(`SELECT * FROM orders
@@ -1621,7 +1621,7 @@ WHERE total_amount > 5000;`)}</div>`:'<div></div>'}</div>
   {note:'EXPLAIN is the planner\'s estimate. It is fast because it does not run the query — it shows the plan it would use.'},
   {note:'EXPLAIN ANALYZE actually runs the query and reports real timings and real row counts, alongside the estimates.'},
   {note:'EXPLAIN (ANALYZE, BUFFERS) also shows how many data pages came from cache versus disk.'},
-  {note:'The caveat, and say it twice. ANALYZE truly executes. Never run it on an UPDATE or DELETE unless it is wrapped in a transaction you roll back.'}],
+  {note:'Say it twice: ANALYZE really runs the query. Wrap UPDATE/DELETE in BEGIN … ROLLBACK.'}],
   body:(st)=>`${tiles([
       {t:'EXPLAIN', pic:'plan', l:'Shows the plan. <b>Runs nothing.</b>', c:'fast &amp; safe', cls:'tl', cc:'note'},
       {t:'EXPLAIN ANALYZE', pic:'watch', l:'<b>Runs it</b>: real time, real rows', c:'the truth', cls:'pp', cc:'note'},
@@ -1630,7 +1630,7 @@ WHERE total_amount > 5000;`)}</div>`:'<div></div>'}</div>
 
 { id:'node', kick:'how to read a node', eyebrow:'Define', title:'Anatomy of one plan node',
   tag:'explain', steps:[
-  {note:'First, where this comes from. You type one line in psql or pgAdmin: EXPLAIN ANALYZE, then the query. PostgreSQL runs it and prints back this block — you never write the plan yourself. Now we read it token by token.'},
+  {note:'You type EXPLAIN ANALYZE plus the query; PostgreSQL prints this back. Now read it piece by piece.'},
   {note:'Seq Scan — read the entire table, row by row. This is the smell.'},
   {note:'cost, zero to 358,458 — startup cost, then total cost. Lower is better.'},
   {note:'rows equals 95,000 — the planner\'s estimate of rows this node will emit.'},
@@ -1667,11 +1667,11 @@ Execution Time: 2141.304 ms</pre></div>
 
 { id:'smells', kick:'what to look for', eyebrow:'Define', title:'The plan-smell checklist',
   tag:'explain', steps:[
-  {note:'Six things to look for in a plan. Each card is one picture, one sentence, and the fix. First: a Seq Scan on a big table when you only wanted a few rows. It read the whole table. Fix: give it an index.'},
-  {note:'Two: the planner\'s guess and reality disagree — it guessed a hundred rows, two million came back. Its statistics are out of date. Fix: run ANALYZE on the table.'},
-  {note:'Three: Rows Removed by Filter is huge. It read millions of rows and threw almost all of them away. Fix: an index, so it only reads the rows you want.'},
-  {note:'Four: Sort Method external merge, Disk. The sort did not fit in memory and spilled to disk, which is slow. Fix: sort fewer rows — a LIMIT, or an index that is already sorted. You want quicksort, Memory.'},
-  {note:'Five: a Nested Loop with a huge loops count. The same lookup was repeated millions of times — usually a correlated subquery. Fix: rewrite with EXISTS or a JOIN, or index the inner side.'},
+  {note:'Six warning signs. One: Seq Scan — read the whole table for a few rows. Fix: an index.'},
+  {note:'Two: guessed 100 rows, got 2 million — stale stats. Fix: ANALYZE the table.'},
+  {note:'Three: Rows Removed is huge — read millions, kept a few. Fix: an index.'},
+  {note:'Four: external merge Disk — the sort didn\'t fit in memory. Fix: sort fewer rows (LIMIT or a sorted index).'},
+  {note:'Five: huge loops= — the same lookup millions of times. Fix: EXISTS or JOIN.'},
   {note:'And six, the good one: Execution Time at the bottom. That is your headline number — measure it before, and again after every fix.'}],
   body:(st)=>{
     /* tiny drawings, one per smell (viewBox 120×60) */
@@ -1723,7 +1723,7 @@ Execution Time: 2141.304 ms</pre></div>
   {note:'Bitmap Index Scan — for a medium number of matches. It collects row locations from the index, then reads the pages in order.'},
   {note:'Index Scan — jump via the index, then fetch each row from the table.'},
   {note:'Index Only Scan — answered from the index alone, never touching the table. The fastest.'},
-  {note:'Join methods. Nested Loop for small sets or an indexed inner side; Hash Join for large unsorted sets; Merge Join when both inputs are already sorted. The planner picks the join from the shape and size of its inputs — and indexes change that shape.'}],
+  {note:'Joins: Nested Loop for few rows, Hash Join for big unsorted sets, Merge Join when both are sorted.'}],
   body:(st)=>{
     const S = [['Seq Scan','read the whole table',100,'var(--flame)'],['Bitmap Index Scan','a medium number of matches',55,'var(--amber-2)'],
                ['Index Scan','jump via index, then fetch rows',25,'var(--pencil)'],['Index Only Scan','answered from the index alone',8,'var(--leaf)']];
@@ -1741,9 +1741,9 @@ Execution Time: 2141.304 ms</pre></div>
 { id:'before', kick:'apply · our scenario', eyebrow:'Our "before" picture', title:'Every row read. Almost all thrown away.',
   tag:'apply', steps:[
   {note:'Here is the query and the plan. Run EXPLAIN ANALYZE on the orders filter.'},
-  {note:'Seq Scan on orders. The database reads every row of the twenty-million-row table. Watch the scan head — the amber squares are the only rows it keeps.'},
+  {note:'Seq Scan on orders: every row read. Only the amber squares are kept.'},
   {note:'Rows removed: 19,901,789. Nearly twenty million rows read and thrown away.'},
-  {note:'Execution time: 2,140 milliseconds. Hold this plan in mind. Every technique today is judged by one question: does this Seq Scan disappear, and does this time drop?'}],
+  {note:'2,140 ms. Every fix today is judged by one question: does the Seq Scan go, does the time drop?'}],
   body:(st)=>`${sql(`EXPLAIN ANALYZE SELECT * FROM orders WHERE total_amount > 5000;`)}
     <div class="stage-row">${sceneSeqScan(st)}</div>
     ${st>=2?`<div class="stats pop">
@@ -1759,7 +1759,7 @@ Execution Time: 2141.304 ms</pre></div>
 /* ================= 4 · the free wins ================= */
 { id:'t1', kick:'trick 1 · select only the columns you need', eyebrow:'Trick 1 of 6', title:'Stop shipping columns you never show',
   tag:'trick', steps:[
-  {note:'Why: fewer, narrower columns means a smaller width and less I/O. And it is a precondition for the fast Index Only Scan later — an index cannot cover SELECT star.'},
+  {note:'Fewer columns = smaller rows = less I/O. And SELECT * can never use an Index Only Scan.'},
   {note:'The fix: ask for what the dashboard shows. customer_id and name.'},
   {note:'The plan tell: the width value drops — here from 210 bytes a row to 32.'}],
   body:(st)=>`<p class="lede"><b>Why:</b> fewer, narrower columns = smaller <code>width</code> = less I/O &mdash; and it's a precondition for the fast <b>Index-Only Scan</b> later.</p>
@@ -1773,11 +1773,11 @@ WHERE city = 'Pune';   -- width=32`)}</div>`:'<div></div>'}</div>
 
 { id:'t2', kick:'trick 2 · keep filters sargable', eyebrow:'Trick 2 of 6', title:'Don\'t wrap an indexed column in a function',
   tag:'trick', steps:[
-  {note:'Why: the index is built on the raw column, not on the function\'s output. Wrap the column in LOWER and the index cannot be used — the planner falls back to a Seq Scan.'},
+  {note:'The index is on email, not LOWER(email). Wrap the column in a function and the index is skipped.'},
   {note:'Keep the column bare. Store emails lower-cased, compare the raw value.'},
   {note:'Same trap with dates: casting order_date to text to use LIKE defeats the range.'},
   {note:'Write it as a half-open range instead: greater-or-equal to January first, less than next January first.'},
-  {note:'Plan tell: a Seq Scan flips to an Index Scan once the column is left bare. And later today we will meet the other fix — an expression index on LOWER(email).'}],
+  {note:'Bare column → Index Scan. The other fix, an expression index, comes in chapter 6.'}],
   body:(st)=>`<p class="lede"><b>Why:</b> the index is built on the <b>raw column</b>, not the function's output &mdash; so a function on the column forces a Seq Scan.</p>
     <div class="pair">
       <div><span class="verdict bad">&#10005; Function kills the index</span>${sql(`SELECT * FROM customers
@@ -1793,9 +1793,9 @@ WHERE [[email]] = 'amit@shop.com';`)}</div>`:'<div></div>'}</div>
 { id:'t3', kick:'trick 3 · join / exists over correlated subqueries', eyebrow:'Trick 3 of 6', title:'Don\'t re-run the inner query per row',
   tag:'trick', steps:[
   {note:'The correlated subquery. For every one of two million customers, count their orders. The inner query runs once per outer row.'},
-  {note:'Rewrite as a JOIN with DISTINCT — one pass over each table. Keep the key in the DISTINCT: DISTINCT c.name alone would merge two different customers who share a name.'},
+  {note:'A JOIN with DISTINCT is one pass. Keep the key in DISTINCT, or namesakes merge.'},
   {note:'Or, best when you only care whether something exists: EXISTS. It can stop at the first matching order.'},
-  {note:'Plan tell: the per-row SubPlan, with a huge loops count, becomes a single Hash Semi Join. Watch the picture — two million trips become one build and one probe. Measured live: about three hours for the correlated version, a quarter of a second for EXISTS.'}],
+  {note:'Per-row SubPlan → one Hash Semi Join. Live: about 3 hours down to a quarter second.'}],
   body:(st)=>`<div class="pair" style="--n:3">
       <div><span class="verdict bad">&#10005; Correlated subquery</span>${sql(`SELECT name FROM customers c
 WHERE ([[!SELECT COUNT(*)]]
@@ -1816,9 +1816,9 @@ WHERE [[EXISTS]] (
 
 { id:'t4', kick:'trick 4 · rewrite OR into IN / UNION', eyebrow:'Trick 4 of 6', title:'Unblock the index the OR was hiding',
   tag:'trick', steps:[
-  {note:'On one column, OR and IN are close cousins. Modern PostgreSQL already uses an index for both — a BitmapOr for the OR, a single equals-ANY for the IN. Prefer IN: it is cleaner and easier to build from code, but do not promise a big speed-up.'},
-  {note:'The OR that really hurts spans two tables: Amit\'s orders, or order 880231. The condition can only be checked after joining everything, so neither index can be used — a Join Filter throws away two million rows.'},
-  {note:'Split it into a UNION. Each branch is a simple query that seeks its own index — the email index, and the primary key. Measured live: about 365 milliseconds down to well under one.'},
+  {note:'One-column OR already uses the index. IN is just cleaner — don\'t promise a big speed-up.'},
+  {note:'OR across two tables can\'t use either index — it joins everything, then filters.'},
+  {note:'Split it with UNION: each branch uses its own index. Live: 365 ms down to under 1 ms.'},
   {note:'Plan tell: a hash join with a giant Join Filter becomes two index lookups glued by UNION.'}],
   body:(st)=>`<div class="pair">
       <div><span class="verdict good">&check; One column &mdash; IN (OR works too)</span>${sql(`SELECT * FROM orders
@@ -1838,7 +1838,7 @@ SELECT order_id, total_amount FROM orders WHERE order_id = 880231;`,'sm')}</div>
 
 { id:'t5', kick:'trick 5 · push LIMIT down · drop needless DISTINCT / ORDER BY', eyebrow:'Trick 5 of 6', title:'Don\'t sort millions to show twenty',
   tag:'trick', steps:[
-  {note:'If you show twenty rows, do not sort and materialize millions. With a matching index on customer_id and order_date, the planner reads just the first twenty and stops early.'},
+  {note:'Showing 20 rows? Don\'t sort millions. With the right index it reads 20 and stops.'},
   {note:'A needless DISTINCT can add a whole sort or hash-aggregate node. If the rows are already unique, remove it and the node disappears.'},
   {note:'Plan tell: a Sort over millions shrinks or vanishes, and the top node\'s actual rows drops to twenty.'}],
   body:(st)=>`<div class="two wl">
@@ -1854,8 +1854,8 @@ ORDER BY order_date DESC
 
 { id:'t6', kick:'trick 6 · keep statistics fresh', eyebrow:'Trick 6 of 6', title:'A good plan needs good estimates',
   tag:'trick', steps:[
-  {note:'Why: the planner\'s choices are only as good as its row estimates. After a big data load — like Black Friday — the estimates go stale, and it picks bad plans. Here it thinks a hundred rows, and gets two million.'},
-  {note:'Run ANALYZE on the table, then re-run EXPLAIN. Often the plan changes on its own — no rewrite needed. Autovacuum usually does this for you, but do it by hand after a bulk load.'},
+  {note:'The planner is only as good as its estimates. After a bulk load they go stale: guessed 100, got 2M.'},
+  {note:'Run ANALYZE, re-run EXPLAIN — the plan often fixes itself. Do it by hand after big loads.'},
   {note:'Plan tell: the gap between estimated and actual rows closes.'}],
   body:(st)=>`<div class="two wl">
       <div class="stage-row">${sceneStats(st)}</div>
@@ -1922,9 +1922,9 @@ ORDER BY ct.spent DESC LIMIT 20;`,'sm')}
 
 { id:'inline', kick:'PostgreSQL 12+', eyebrow:'Define', title:'Inlined by default — you can override',
   tag:'cte', steps:[
-  {note:'A CTE that is referenced once is inlined by default — folded into the main query, so the planner can optimize across it. For example, it can push a filter down into the block. Careful: referenced twice or more, PostgreSQL materializes it by default.'},
+  {note:'Used once, a CTE is inlined — filters push inside. Used twice or more, it\'s materialized.'},
   {note:'AS MATERIALIZED: compute the block once, store the result, reuse it. Great when the block is expensive and referenced two or more times.'},
-  {note:'AS NOT MATERIALIZED: force inlining even when it is referenced several times, so the planner can push filters and joins inside. The price: the block is computed once per reference — measured live, a CTE used twice took twice as long inlined.'},
+  {note:'NOT MATERIALIZED copies it into every use — so it\'s computed each time. Rarely what you want.'},
   {note:'Rule of thumb: inline for the planner\'s freedom; materialize only when an expensive block is genuinely reused.'}],
   body:(st)=>`${tiles([
       {t:'Used once', pic:'push', l:'<b>Inlined</b>: filters push inside', c:'the default', cls:'good'},
@@ -1935,7 +1935,7 @@ ORDER BY ct.spent DESC LIMIT 20;`,'sm')}
 
 { id:'trap', kick:'evaluate · when CTEs hurt', eyebrow:'The materialization trap', title:'A wall the filter can\'t cross',
   tag:'cte', steps:[
-  {note:'Materialize all of orders, then look up one id. The CTE computes all twenty million rows first, and the WHERE cannot push inside. Disaster — a CTE Scan over twenty million rows to return one.'},
+  {note:'Materialize all 20M orders, then look up one id — the filter can\'t get inside. Disaster.'},
   {note:'Inline it and the filter pushes into the block, and it returns one row through the primary-key index.'},
   {note:'History worth knowing: before PostgreSQL 12, every CTE was an optimization fence — an easy way to slow things down by accident.'}],
   body:(st)=>`${sql(`WITH all_orders AS [[!MATERIALIZED]] (SELECT * FROM orders)   -- computes ALL 20M rows
@@ -1951,13 +1951,13 @@ SELECT * FROM all_orders WHERE order_id = 42;                -- filter can't pus
 { id:'book', kick:'need · the idea', eyebrow:'Indexing', title:'Like the index at the back of a book',
   tag:'index', steps:[
   {note:'To find every mention of photosynthesis without an index, you read all 900 pages. That is a Seq Scan.'},
-  {note:'With the index, you flip to the entry and jump straight to the right pages. That is an Index Scan. The database keeps a sorted, quick-lookup structure so it can find rows without reading the whole table.'}],
+  {note:'With an index you jump straight to the right page. That\'s an Index Scan.'}],
   body:(st)=>`<div class="stage-row">${sceneBook(st)}</div>
     ${st>=1?`<p class="lede pop">The database keeps a <b>sorted, quick-lookup structure</b> so it can find rows without reading the whole table.</p>`:''}` },
 
 { id:'types', kick:'5.1 · types by access method', eyebrow:'Five structures', title:'Mostly you want B-tree',
   tag:'index', steps:[
-  {note:'B-tree: equality and range — equals, less than, greater than, BETWEEN, ORDER BY. The default, and about ninety percent of the indexes you will ever create.'},
+  {note:'B-tree handles =, <, >, BETWEEN and ORDER BY — the default, ~90% of real indexes.'},
   {note:'Hash: equality only. Rarely worth it over a B-tree.'},
   {note:'GIN: many values per row — jsonb, arrays, full-text search.'},
   {note:'GiST: geometric and nearest-neighbour — maps, ranges, "stores near me".'},
@@ -1974,8 +1974,8 @@ SELECT * FROM all_orders WHERE order_id = 42;                -- filter can't pus
 { id:'btree', kick:'how it works · B-tree', eyebrow:'A sorted, balanced tree', title:'Root, branch, leaf',
   tag:'index', steps:[
   {note:'Keys stay sorted across a multi-level tree, and every leaf sits at the same depth. That is the balanced part.'},
-  {note:'A lookup walks root, branch, leaf, comparing at each step. Find 70: it is between 40 and 80, so the middle branch; then the leaf. That is O(log n) — a few page reads even over twenty million rows.'},
-  {note:'The leaves are linked in order, so a range just walks the chain. That is why a B-tree serves equals, less than, greater than, BETWEEN and ORDER BY.'},
+  {note:'Find 70: root, then the 40–80 branch, then the leaf. A few page reads, even over 20M rows.'},
+  {note:'Leaves are linked in order, so a range just walks along them.'},
   {note:'In SQL: an index on order_date serves the whole month of November as one walk along the leaves.'}],
   body:(st)=>`<div class="stage-row">${sceneBtree(st)}</div>
     ${st>=3?sql(`CREATE INDEX ON orders (order_date);
@@ -1984,8 +1984,8 @@ SELECT * FROM all_orders WHERE order_id = 42;                -- filter can't pus
 { id:'hash', kick:'how it works · hash', eyebrow:'One jump straight to the bucket', title:'Hash index',
   tag:'index', steps:[
   {note:'The key goes in on the left — a session token.'},
-  {note:'It runs through a hash function to get a bucket number, and the database searches only that bucket. Roughly O(1) for equality — no tree levels to walk.'},
-  {note:'But it stores no order. So it cannot help less-than, greater-than, BETWEEN, ORDER BY, or a prefix LIKE. A B-tree usually wins, because it does equality and more.'}],
+  {note:'Hash the key, go to one bucket. Equality only — very fast.'},
+  {note:'No order stored, so no <, >, BETWEEN or ORDER BY. B-tree usually wins.'}],
   body:(st)=>`<div class="stage-row">${sceneHash(st)}</div>
     ${st>=2?sql(`CREATE INDEX ON sessions USING HASH (session_token);
 -- equality only: WHERE session_token = 'a9f3c...'`):''}` },
@@ -1993,7 +1993,7 @@ SELECT * FROM all_orders WHERE order_id = 42;                -- filter can't pus
 { id:'gin', kick:'how it works · GIN · inverted index', eyebrow:'One entry per value, pointing to rows', title:'GIN',
   tag:'index', steps:[
   {note:'A table normally stores row to values: row 88 has the tags sale and new.'},
-  {note:'An inverted index flips it: value to the rows that contain it — like the index of a book. Built for many values per row: arrays, jsonb, full-text tsvector.'},
+  {note:'GIN flips it: each value points to the rows that contain it. For arrays, jsonb, full text.'},
   {note:'A search for one element jumps straight to that value\'s posting list. Tags contains sale: read one list — rows 12, 88 and 140.'}],
   body:(st)=>`<div class="stage-row">${sceneGin(st)}</div>
     ${st>=2?sql(`CREATE INDEX ON products USING GIN (tags);   -- WHERE tags @> '{sale}'`):''}` },
@@ -2012,7 +2012,7 @@ SELECT * FROM all_orders WHERE order_id = 42;                -- filter can't pus
   {note:'BRIN stores only the minimum and maximum for each range of physical blocks. Our query wants created_at from November first.'},
   {note:'Blocks 1 to 64 hold September. The max is below November — skip.'},
   {note:'Blocks 65 to 128 hold October — skip.'},
-  {note:'Blocks 129 to 192 hold November — scan. The whole index is tiny, often kilobytes for a multi-gigabyte table. The catch: it only works when the physical order correlates with the column — append-only, naturally ordered time series.'}],
+  {note:'Only November\'s blocks get scanned. Tiny index — but only for data stored in time order.'}],
   body:(st)=>`<div class="stage-row">${sceneBrin(st)}</div>
     ${st>=3?`${tell('Only when','physical order correlates with the column &mdash; append-only, naturally-ordered time-series.','warn')}
       ${sql(`CREATE INDEX ON events USING BRIN (created_at);   -- huge append-only log, ordered by time`)}`:''}` },
@@ -2022,7 +2022,7 @@ SELECT * FROM all_orders WHERE order_id = 42;                -- filter can't pus
   {note:'A composite index on customer_id, then order_date. Think of a phone book: sorted by surname, then first name.'},
   {note:'WHERE customer_id = 1024 — uses it. All of 1024\'s entries sit together.'},
   {note:'customer_id = 1024 AND order_date after November first — uses it. A slice of that same block.'},
-  {note:'order_date alone skips the leftmost column. The matching dates are scattered across every customer — like finding everyone named Riya in a phone book sorted by surname. The planner cannot seek into it; at best it reads the whole index when that is cheaper than the table — in the live run, 45 milliseconds instead of 13 with the columns the right way round. And PostgreSQL 18 adds skip scan, which helps only when the leading column has few distinct values. The rule for column order: equality columns first, range and sort columns last.'}],
+  {note:'order_date alone skips the leftmost column — like finding every \'Riya\' in a phone book sorted by surname. Rule: equality first, range last.'}],
   body:(st)=>`${sql(`CREATE INDEX ON orders (customer_id, order_date);`,'lg')}
     <div class="stage-row">${sceneComposite(st)}</div>
     ${st>=3?tell('Column order','equality columns first, range / sort columns last. Without the leading column the index can be read whole, never <b>sought</b> (PG 18 skip scan helps only when the leading column has few values).','note'):''}` },
@@ -2041,10 +2041,10 @@ SELECT * FROM all_orders WHERE order_id = 42;                -- filter can't pus
 
 { id:'whenidx', kick:'5.2 · when to use them', eyebrow:'Index these', title:'— and verify the plan',
   tag:'index', steps:[
-  {note:'A selective WHERE filter — one that returns a small fraction of the table. Selectivity is everything: status, where 95 percent is delivered, is nearly useless; email, which is unique, is ideal.'},
-  {note:'Join keys — foreign keys like orders.customer_id and order_items.order_id. A very common miss: PostgreSQL does not index foreign keys for you.'},
+  {note:'Index selective filters. Email (unique) is ideal; status (95% delivered) is nearly useless.'},
+  {note:'Index join keys. PostgreSQL does not index foreign keys for you.'},
   {note:'ORDER BY and GROUP BY columns — an index supplies pre-sorted rows and deletes a Sort node.'},
-  {note:'And always verify. After creating it, re-run EXPLAIN. The node should change to an Index, Index Only or Bitmap scan and the time should drop — or the planner correctly ignored it.'}],
+  {note:'Always re-run EXPLAIN after creating an index. Did the node change, did the time drop?'}],
   body:(st)=>`${tiles([
       {t:'Selective filters', pic:'few', l:'The WHERE keeps a <b>small slice</b>', c:'email &check; &nbsp; status &#10005;', cls:'good', cc:'note'},
       {t:'Join keys', pic:'fk', l:'Foreign keys are <b>not</b> indexed for you', c:'orders.customer_id', cls:'tl', cc:'note'},
@@ -2057,7 +2057,7 @@ SELECT * FROM all_orders WHERE order_id = 42;                -- filter can't pus
   {note:'Here one row written means five structures updated. Indexes also consume disk and RAM cache, and redundant or unused ones are pure overhead.'},
   {note:'Rule of thumb: index the columns you filter and join on constantly — not every column just in case.'},
   {note:'Mini-checkpoint. An index on status, with four evenly spread values, still shows a Seq Scan. Bug, or correct?'},
-  {note:'Correct. Low selectivity — reading a quarter of the table through an index is slower than just scanning it. If one status is rare, consider a partial index.'}],
+  {note:'Correct — too few distinct values; scanning is cheaper. If one status is rare, use a partial index.'}],
   body:(st)=>`<div class="stage-row">${sceneWriteCost(st)}</div>
     ${st>=1?tiles([
       {t:'Slower writes', ico:'bolt', l:'Every INSERT / UPDATE / DELETE updates <b>every</b> index', at:1},
@@ -2107,10 +2107,10 @@ WHERE [[!LOWER(email)]] = 'sam@shop.io';`)}
 
 { id:'victory', kick:'the victory lap', eyebrow:'Kill the Seq Scan', title:'Same data. Same result.',
   tag:'payoff', steps:[
-  {note:'The query this index is built for: Aarav\'s orders this month — customer 1024, from the first of the month. One index, built concurrently: customer_id, then order_date, including total_amount. Equality first, range second, and the amount carried along so the table is never touched.'},
-  {note:'Before: Seq Scan on orders — all twenty million rows read to return Aarav\'s handful. 2,140 milliseconds. After: Index Only Scan using our new index — 3.2 milliseconds.'},
+  {note:'Aarav\'s orders this month: customer_id first, order_date second, total_amount carried along.'},
+  {note:'Before: Seq Scan, 2,140 ms. After: Index Only Scan, 3.2 ms.'},
   {note:'Same data. Same result. We changed the route, not the destination. 2,140 milliseconds to 3.'},
-  {note:'One honest footnote: this index serves this query, not every query. The orders-over-five-thousand filter from the before picture needs its own index on total_amount, and the all-customers dashboard filters on order_date alone, so it needs order_date first. Each query gets the index its WHERE clause asks for.'}],
+  {note:'This index serves this query only. Each query needs the index its WHERE asks for.'}],
   body:(st)=>`${sql(`SELECT order_date, total_amount FROM orders
 WHERE [[customer_id = 1024]] AND [[order_date >= date_trunc('month', CURRENT_DATE)]];
 
@@ -2147,9 +2147,9 @@ CREATE INDEX CONCURRENTLY idx_orders_cust_date_amt
 
 { id:'homework', kick:'bridge to next lecture', eyebrow:'Homework & what\'s next', title:'Bring me a plan',
   tag:'close', steps:[
-  {note:'The assignment: a slow order_items report query and its schema. Bring the EXPLAIN ANALYZE from before and after, and the index you chose — and justify the column order.'},
+  {note:'Homework: a slow order_items report. Bring before/after plans and your index — justify the column order.'},
   {note:'Next: the layers we deliberately skipped today — partitioning, and configuration tuning like work_mem. The schema and hardware levels.'},
-  {note:'And the line to leave them with. You did not make the database faster. You stopped making it do unnecessary work — and then you gave it a shortcut. That is query optimization.'}],
+  {note:'You didn\'t make the database faster. You removed waste — then gave it a shortcut.'}],
   body:(st)=>`${tiles([
       {t:'Your assignment', ico:'search', l:'A slow <b>order_items</b> report', c:'before / after plan + your index', cls:'pp', cc:'note'},
       {t:'Next lecture', ico:'layers', l:'The layers we skipped', c:'partitioning · work_mem', cls:'tl', cc:'note'}], st, 2)}
@@ -2177,7 +2177,7 @@ CHAPTERS.forEach(ch => {
     id:'ch'+ch.n, chapter:ch, type:'chapter',
     eyebrow:'Chapter '+ch.n, title:ch.t, kick:OPENERS[ch.n].when, tag:'story',
     steps:[
-      {note:'Chapter card. Pause here — this is where the story turns. Read the situation, then let them feel the problem before you name the technique.'},
+      {note:'Chapter card. Pause, then read the lines one by one.'},
       {note:(OPENERS[ch.n].say||[])[0] || OPENERS[ch.n].problem},
       {note:(OPENERS[ch.n].say||[])[1] || OPENERS[ch.n].detail},
       {note:(OPENERS[ch.n].say||[])[2] || OPENERS[ch.n].next}
